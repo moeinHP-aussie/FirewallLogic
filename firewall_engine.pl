@@ -32,6 +32,13 @@
 % why "Priority" is a separate field from "ID".
 % ============================================================================
 
+% NOTE: is_shadowed/3, is_redundant/3, is_correlated/3, is_generalization/3
+% also exist below (internal helpers used only by find_all_anomalies/1 to
+% share one pre-computed candidate-pair list across all four detectors
+% instead of each one re-running the sweep -- see the "Candidate pair
+% generation" section). They are deliberately NOT exported: the
+% documented public interface is still exactly the /2 forms below,
+% unchanged in behavior from earlier versions of this file.
 :- module(firewall_engine, [
     is_shadowed/2,
     is_redundant/2,
@@ -297,7 +304,27 @@ port_overlaps(PA, PB) :-
 % config syntax into rule/8 facts, not on deciding which facts are
 % worth comparing.
 
-% dst_ip_bounds(-ID-Start-End) for every rule, as a list.
+% NOTE ON MIXED IPv4/IPv6 CONFIGS: ip_range/3 (see ip_subnet.pl) returns
+% a plain integer for both families -- a 32-bit range for ip4 terms, a
+% 128-bit range for ip6 terms -- and this sweep sorts ALL rules'
+% Start-End-ID triples together on one numeric axis regardless of
+% family. This means an ip6 rule's (large-magnitude) integer range can
+% numerically interleave with ip4 ranges in the sorted list, and the
+% sweep may propose an ip4-vs-ip6 pair as a DstIP-overlap "candidate"
+% purely by coincidence of integer magnitude -- even though the two
+% addresses have nothing to do with each other.
+%
+% This is NOT a soundness bug: every detector below immediately calls
+% covers/2 or traffic_overlaps/2, both of which route through
+% same_family/2 (ip_subnet.pl), which FAILS on any ip4/ip6 mix. So a
+% bogus cross-family candidate is always rejected before it could ever
+% become a false-positive finding -- it just costs one wasted check
+% instead of being filtered out at sweep time. For a config that mixes
+% both families heavily, this quietly shrinks how much the DstIP
+% pre-filter actually saves. sample_rules.pl is IPv4-only, so this
+% doesn't affect Phase 2's own test fixture; worth revisiting only if
+% Phase 3 configs turn out to be genuinely dual-stack (e.g. sorting the
+% two families into separate sweeps and unioning the candidate pairs).
 rule_dst_bounds(Bounds) :-
     findall(Start-End-ID,
             ( rule(ID, _, _, _, _, DstIP, _, _),
@@ -386,8 +413,28 @@ earlier_rule(RuleA, RuleB, RuleB, RuleA) :-
     RuleB = rule(_,PrioB,_,_,_,_,_,_),
     PrioB < PrioA.
 
+% is_shadowed/2 is the PUBLIC, standalone-callable predicate (exported
+% by the module, documented above) -- e.g. for an interactive session
+% or a future Phase 3 caller that just wants "?- is_shadowed(2, X)."
+% without going through find_all_anomalies/1. It computes candidate_pair/2
+% (i.e. runs the sweep) itself, exactly as before.
+%
+% is_shadowed/3 is an internal-only variant that takes an ALREADY
+% COMPUTED candidate-pair list instead of calling candidate_pair/2
+% itself. find_all_anomalies/1 below calls the sweep exactly ONCE and
+% passes the resulting list into all four detectors' /3 forms, instead
+% of each detector independently re-running rule_dst_bounds/keysort/sweep
+% (which is what happened before -- four full sweeps per report instead
+% of one). Public behavior and arity of is_shadowed/2 are unchanged.
 is_shadowed(ShadowedID, ShadowingID) :-
     candidate_pair(A, B),
+    is_shadowed_pair(A, B, ShadowedID, ShadowingID).
+
+is_shadowed(Pairs, ShadowedID, ShadowingID) :-
+    member(A-B, Pairs),
+    is_shadowed_pair(A, B, ShadowedID, ShadowingID).
+
+is_shadowed_pair(A, B, ShadowedID, ShadowingID) :-
     rule(A, PrioA, ActionA, PA, SA, DA, SPA, DPA),
     rule(B, PrioB, ActionB, PB, SB, DB, SPB, DPB),
     earlier_rule(rule(A,PrioA,ActionA,PA,SA,DA,SPA,DPA),
@@ -411,8 +458,18 @@ is_shadowed(ShadowedID, ShadowingID) :-
 % it redundant -- e.g. rule 1 already allows all of 10.0.0.0/8, so a
 % later rule 2 that allows 10.0.0.0/16 is fully redundant even though
 % rule 2's selector is a strict subset of rule 1's, not identical to it.
+% See the is_shadowed/2 vs is_shadowed/3 note above -- same pattern:
+% /2 is the public, self-contained predicate; /3 takes a pre-computed
+% candidate-pair list for find_all_anomalies/1's shared-sweep fast path.
 is_redundant(RedundantID, CauseID) :-
     candidate_pair(A, B),
+    is_redundant_pair(A, B, RedundantID, CauseID).
+
+is_redundant(Pairs, RedundantID, CauseID) :-
+    member(A-B, Pairs),
+    is_redundant_pair(A, B, RedundantID, CauseID).
+
+is_redundant_pair(A, B, RedundantID, CauseID) :-
     rule(A, PrioA, ActionA, PA, SA, DA, SPA, DPA),
     rule(B, PrioB, ActionB, PB, SB, DB, SPB, DPB),
     earlier_rule(rule(A,PrioA,ActionA,PA,SA,DA,SPA,DPA),
@@ -436,8 +493,18 @@ is_redundant(RedundantID, CauseID) :-
 % candidate_pair/2 already yields ID1 < ID2, so no extra reordering
 % is needed here (unlike is_shadowed/is_redundant, which are
 % directional and must try both orderings).
+% See the is_shadowed/2 vs is_shadowed/3 note above -- same pattern.
+% candidate_pair/2 already yields ID1 < ID2, so /3 below can reuse the
+% shared Pairs list directly with no extra reordering, same as /2 did.
 is_correlated(ID1, ID2) :-
     candidate_pair(ID1, ID2),
+    is_correlated_pair(ID1, ID2).
+
+is_correlated(Pairs, ID1, ID2) :-
+    member(ID1-ID2, Pairs),
+    is_correlated_pair(ID1, ID2).
+
+is_correlated_pair(ID1, ID2) :-
     rule(ID1, _, Action1, P1, S1, D1, SP1, DP1),
     rule(ID2, _, Action2, P2, S2, D2, SP2, DP2),
     actions_conflict(Action1, Action2),
@@ -461,8 +528,16 @@ is_correlated(ID1, ID2) :-
 %     reviewer misreads which rule comes first.
 % This is deliberately the mirror image of is_shadowed/2: same
 % covers/2 relationship, opposite priority ordering.
+% See the is_shadowed/2 vs is_shadowed/3 note above -- same pattern.
 is_generalization(SpecificID, GeneralID) :-
     candidate_pair(A, B),
+    is_generalization_pair(A, B, SpecificID, GeneralID).
+
+is_generalization(Pairs, SpecificID, GeneralID) :-
+    member(A-B, Pairs),
+    is_generalization_pair(A, B, SpecificID, GeneralID).
+
+is_generalization_pair(A, B, SpecificID, GeneralID) :-
     rule(A, PrioA, ActionA, PA, SA, DA, SPA, DPA),
     rule(B, PrioB, ActionB, PB, SB, DB, SPB, DPB),
     earlier_rule(rule(A,PrioA,ActionA,PA,SA,DA,SPA,DPA),
@@ -547,51 +622,60 @@ port_term_string(port_range(Lo,Hi), Str) :- !, format(atom(Str), "~w-~w", [Lo,Hi
 % Phase 3/4's report generator renders this list as HTML/PDF/a table;
 % it does not need to re-derive or reformat the reasoning, only the
 % presentation.
+% Computes the DstIP-overlap sweep exactly ONCE (Pairs), then passes it
+% into all four detectors' /3 forms. Before this, each of the four
+% findall/3 calls below independently called its detector's public /2
+% form, and each of those independently ran rule_dst_bounds/keysort/sweep
+% from scratch -- i.e. one full report meant FOUR full sweeps over the
+% same rule/8 facts. The sweep is O(N log N), so this didn't change the
+% asymptotic complexity, but it was a 4x constant-factor cost on exactly
+% the part of the pipeline this whole optimization exists to speed up.
 find_all_anomalies(Report) :-
-    findall(F, shadowing_finding(F), ShadowingFindings),
-    findall(F, redundancy_finding(F), RedundancyFindings),
-    findall(F, correlation_finding(F), CorrelationFindings),
-    findall(F, generalization_finding(F), GeneralizationFindings),
+    findall(A-B, candidate_pair(A, B), Pairs),
+    findall(F, shadowing_finding(Pairs, F), ShadowingFindings),
+    findall(F, redundancy_finding(Pairs, F), RedundancyFindings),
+    findall(F, correlation_finding(Pairs, F), CorrelationFindings),
+    findall(F, generalization_finding(Pairs, F), GeneralizationFindings),
     append([ShadowingFindings, RedundancyFindings,
             CorrelationFindings, GeneralizationFindings], Report).
 
-shadowing_finding(finding(shadowing, Severity, ShadowingID, ShadowedID, Explanation)) :-
-    is_shadowed(ShadowedID, ShadowingID),
+shadowing_finding(Pairs, finding(shadowing, Severity, ShadowingID, ShadowedID, Explanation)) :-
+    is_shadowed(Pairs, ShadowedID, ShadowingID),
     severity(shadowing, Severity),
     rule_summary(ShadowingID, ShadowingSummary),
     rule_summary(ShadowedID, ShadowedSummary),
     format(atom(Explanation),
-            "Rule ~w can NEVER take effect. It is evaluated after rule ~w, \c
+           "Rule ~w can NEVER take effect. It is evaluated after rule ~w, \c
             which already matches every packet rule ~w would match, with \c
             the opposite action. Traffic that rule ~w was meant to handle \c
             is entirely decided by rule ~w instead.~n    \c
             Shadowing rule -- ~w~n    \c
             Shadowed rule  -- ~w",
-            [ShadowedID, ShadowingID, ShadowedID, ShadowedID, ShadowingID,
+           [ShadowedID, ShadowingID, ShadowedID, ShadowedID, ShadowingID,
             ShadowingSummary, ShadowedSummary]).
 
-redundancy_finding(finding(redundancy, Severity, CauseID, RedundantID, Explanation)) :-
-    is_redundant(RedundantID, CauseID),
+redundancy_finding(Pairs, finding(redundancy, Severity, CauseID, RedundantID, Explanation)) :-
+    is_redundant(Pairs, RedundantID, CauseID),
     severity(redundancy, Severity),
     rule_summary(CauseID, CauseSummary),
     rule_summary(RedundantID, RedundantSummary),
     format(atom(Explanation),
-            "Rule ~w is redundant. Rule ~w, evaluated earlier with the same \c
+           "Rule ~w is redundant. Rule ~w, evaluated earlier with the same \c
             action, already covers every packet rule ~w matches -- rule ~w \c
             never changes the outcome for any packet, it only costs \c
             extra processing time on every match attempt.~n    \c
             Covering rule  -- ~w~n    \c
             Redundant rule -- ~w",
-            [RedundantID, CauseID, RedundantID, RedundantID,
+           [RedundantID, CauseID, RedundantID, RedundantID,
             CauseSummary, RedundantSummary]).
 
-correlation_finding(finding(correlation, Severity, ID1, ID2, Explanation)) :-
-    is_correlated(ID1, ID2),
+correlation_finding(Pairs, finding(correlation, Severity, ID1, ID2, Explanation)) :-
+    is_correlated(Pairs, ID1, ID2),
     severity(correlation, Severity),
     rule_summary(ID1, Summary1),
     rule_summary(ID2, Summary2),
     format(atom(Explanation),
-            "Rules ~w and ~w have overlapping traffic selectors with \c
+           "Rules ~w and ~w have overlapping traffic selectors with \c
             CONFLICTING actions, and neither rule fully contains the \c
             other. The real outcome for packets in the overlap depends \c
             entirely on which rule is evaluated first -- reordering \c
@@ -599,15 +683,15 @@ correlation_finding(finding(correlation, Severity, ID1, ID2, Explanation)) :-
             This needs a human decision, it cannot be auto-resolved.~n    \c
             Rule ~w -- ~w~n    \c
             Rule ~w -- ~w",
-            [ID1, ID2, ID1, Summary1, ID2, Summary2]).
+           [ID1, ID2, ID1, Summary1, ID2, Summary2]).
 
-generalization_finding(finding(generalization, Severity, SpecificID, GeneralID, Explanation)) :-
-    is_generalization(SpecificID, GeneralID),
+generalization_finding(Pairs, finding(generalization, Severity, SpecificID, GeneralID, Explanation)) :-
+    is_generalization(Pairs, SpecificID, GeneralID),
     severity(generalization, Severity),
     rule_summary(SpecificID, SpecificSummary),
     rule_summary(GeneralID, GeneralSummary),
     format(atom(Explanation),
-            "Specific rule ~w is evaluated before broader rule ~w, with a \c
+           "Specific rule ~w is evaluated before broader rule ~w, with a \c
             different action -- this is likely intentional (e.g. \c
             'block this one exception, allow the rest'), not a bug. It \c
             is flagged because it is FRAGILE: if these two rules are ever \c
@@ -616,7 +700,7 @@ generalization_finding(finding(generalization, Severity, SpecificID, GeneralID, 
             change with no error or warning.~n    \c
             Specific rule -- ~w~n    \c
             Broader rule  -- ~w",
-            [SpecificID, GeneralID, SpecificSummary, GeneralSummary]).
+           [SpecificID, GeneralID, SpecificSummary, GeneralSummary]).
 
 % print_anomaly_report/0
 % Human-readable console report, useful for manual testing and for a
@@ -640,5 +724,5 @@ print_severity_group(Severity, Report) :-
     length(Group, GroupN),
     format("~n--- ~w (~w) ---~n", [SeverityUpper, GroupN]),
     forall(member(finding(Type,_,_,_,Explanation), Group),
-            format("~n[~w]~n~w~n", [Type, Explanation])).
+           format("~n[~w]~n~w~n", [Type, Explanation])).
 print_severity_group(_, _).  % no findings at this severity -- print nothing
