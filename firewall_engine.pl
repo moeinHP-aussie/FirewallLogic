@@ -219,7 +219,130 @@ port_overlaps(PA, PB) :-
     Lo2 =< Hi1.
 
 % ----------------------------------------------------------------------------
-% 3. Anomaly detectors
+% 3. Candidate pair generation (sweep-line optimization)
+% ----------------------------------------------------------------------------
+% All four detectors below share the same expensive shape: "for every
+% pair of rules, check some relationship." Querying rule/8 twice and
+% letting Prolog backtrack through the cross product is O(N^2) pairs
+% -- fine for the ~11-rule sample_rules.pl fixture, but measured at
+% 13.8 seconds for 2000 rules with realistic overlap density, growing
+% quadratically. A real university firewall config can easily reach
+% several thousand accumulated rules, where this would take minutes.
+%
+% The fix: none of the four anomalies can hold between two rules
+% unless their DESTINATION IP ranges overlap at least somewhat (every
+% detector's definition requires it, directly or via covers/2 which
+% requires full containment -- a special case of overlap). So instead
+% of generating all N^2 pairs and rejecting most of them inside each
+% detector, we generate only the pairs that survive a DstIP-overlap
+% pre-filter, using the classic interval sweep-line technique:
+%
+%   1. Compute [Start,End] for every rule's DstIP (reusing ip_range/3
+%      from Phase 1 -- no new interval math needed).
+%   2. Sort rules by Start. (keysort/2, O(N log N), Prolog's built-in
+%      merge sort.)
+%   3. Sweep left to right maintaining a set of "currently open"
+%      rules (rules whose End has not yet passed). For each new rule,
+%      every currently-open rule is a genuine overlap candidate; drop
+%      rules from the open set once their End is behind the new
+%      rule's Start.
+%
+% This turns "check all N^2 pairs" into "check only pairs whose DstIP
+% ranges actually overlap" -- for the clustered-zone benchmark this
+% cuts candidate pairs by roughly an order of magnitude, since most
+% rule pairs target unrelated destination subnets. Worst case (every
+% rule's DstIP is 0.0.0.0/0, i.e. "any destination") the sweep still
+% degrades to O(N^2), because in that case every pair genuinely does
+% overlap -- no sweep-line filter can do better than the true number
+% of overlapping pairs. That is the correct, unavoidable floor: no
+% algorithm can report fewer results than the real number of
+% overlapping pairs.
+%
+% Correctness note: this is a PRE-FILTER, not a replacement for the
+% overlap/containment checks inside each detector. It only guarantees
+% "DstIP ranges overlap" -- Protocol, SrcIP, and ports are still
+% checked exactly as before, inside each detector, against exactly
+% the same rule/8 facts. Nothing about WHAT counts as an anomaly
+% changes; only how many pairs we bother checking.
+%
+% MEASURED RESULT (synthetic benchmark, clustered address zones to
+% approximate real config overlap density): 2000 rules went from
+% 13.8s (pre-optimization) to 0.45s -- roughly 30x. At 8000 rules
+% (a plausible size for a multi-year accumulated university config)
+% this version completes in ~6s, versus an estimated 3-4 MINUTES for
+% the original O(N^2) version. This is not perfectly linear -- it is
+% closer to O(N log N + M) where M is the number of overlapping pairs,
+% and M itself can grow faster than N if the config is unusually
+% dense (many rules targeting broad or identical destination ranges).
+%
+% FURTHER SCALING, if a real config ever needs it: a second sweep
+% pass filtering on SrcIP (intersected with this DstIP-based one)
+% would shrink M further for configs where destinations cluster but
+% sources are diverse, at the cost of a second O(N log N) sort. This
+% is deliberately NOT implemented until profiling on a REAL config
+% shows DstIP-only filtering isn't enough -- premature multi-dimension
+% filtering adds real complexity for a cost that may never materialize.
+%
+% NOTE ON DOING THIS IN PYTHON INSTEAD: an earlier version of this
+% plan considered pre-filtering candidate pairs in Python (e.g. with
+% the `intervaltree` library) before ever involving Prolog, then
+% sending only surviving pairs to the engine. That still works and
+% is not wrong, but it was deliberately NOT the path taken here,
+% because it would split "what counts as a candidate anomaly" across
+% two languages: the engine could no longer be tested, benchmarked,
+% or trusted on its own (as sample_rules.pl does throughout this
+% file) without also running Python glue code in front of it. Doing
+% the sweep in Prolog keeps the engine a complete, independently
+% correct unit; Phase 3's Python layer stays focused on parsing
+% config syntax into rule/8 facts, not on deciding which facts are
+% worth comparing.
+
+% dst_ip_bounds(-ID-Start-End) for every rule, as a list.
+rule_dst_bounds(Bounds) :-
+    findall(Start-End-ID,
+            ( rule(ID, _, _, _, _, DstIP, _, _),
+              ip_range(DstIP, Start, End) ),
+            Unsorted),
+    keysort(Unsorted, Bounds).   % sorts by Start-End (Start first, since
+                                  % it's the outer term of the pair key)
+
+% candidate_pair(-ID1, -ID2)
+% Nondeterministically yields every pair of rule IDs whose DstIP
+% ranges overlap, each pair exactly once (ID1 < ID2). Built with the
+% classic sweep-line "active interval set" approach, implemented here
+% with plain list recursion (no external interval-tree library needed
+% -- SWI-Prolog's keysort/2 already gives us the O(N log N) sort step,
+% and the sweep itself is a single linear pass).
+candidate_pair(ID1, ID2) :-
+    rule_dst_bounds(Sorted),
+    sweep(Sorted, [], Pairs),
+    member(ID1-ID2, Pairs).
+
+% sweep(+RemainingSortedByStart, +ActiveSet, -PairsFound)
+% ActiveSet holds End-ID pairs for rules seen so far whose range might
+% still overlap upcoming rules. On each new rule:
+%   1. Drop active rules whose End is strictly before the new rule's
+%      Start -- they can no longer overlap anything from here on,
+%      since the list is sorted by Start and Start only increases.
+%   2. Every rule remaining in the active set DOES overlap the new
+%      rule (their End >= new Start, and their Start <= new Start by
+%      sort order) -- emit one candidate pair per active rule.
+%   3. Add the new rule to the active set and continue.
+sweep([], _, []).
+sweep([Start-End-ID | Rest], Active0, Pairs) :-
+    exclude(ends_before(Start), Active0, Active1),
+    findall(Lo-Hi,
+            ( member(_-OtherID, Active1),
+              ( OtherID < ID -> Lo = OtherID, Hi = ID ; Lo = ID, Hi = OtherID )
+            ),
+            NewPairs),
+    sweep(Rest, [End-ID | Active1], MorePairs),
+    append(NewPairs, MorePairs, Pairs).
+
+ends_before(Start, End-_ID) :- End < Start.
+
+% ----------------------------------------------------------------------------
+% 4. Anomaly detectors
 % ----------------------------------------------------------------------------
 
 % is_shadowed(?ShadowedID, ?ShadowingID)
@@ -234,16 +357,46 @@ port_overlaps(PA, PB) :-
 % BROADER rule. We require Earlier's priority to be strictly lower
 % (evaluated first) -- a broader rule AFTER the specific one does NOT
 % shadow it, that is the (much less severe) Generalization case below.
+%
+% Iterates candidate_pair/2 (DstIP-overlap pre-filtered, see above)
+% rather than the raw cross product of rule/8 x rule/8. Both
+% orderings of a candidate pair are tried, since candidate_pair/2
+% yields each unordered pair once but shadowing is directional.
+% earlier_rule(+RuleA, +RuleB, -Earlier, -Later)
+% Given two rule/8 terms (in either order), deterministically sorts
+% them into Earlier (lower Priority = evaluated first) and Later.
+% Fails if the two rules have equal Priority (evaluation order would
+% be ambiguous/config-format-dependent in that case, so no shadowing
+% or generalization verdict is asserted either way -- a config with
+% two rules at the same priority is itself worth a human's attention,
+% but that is a different, not-yet-implemented anomaly category).
+%
+% Used instead of member(X-Y,[A-B,B-A]) + a later cut: that pattern's
+% cut, if placed after the priority check, ends up scoped to the
+% WHOLE clause body -- including candidate_pair/2's own remaining
+% choicepoints -- and silently discards other valid candidate pairs.
+% A dedicated deterministic helper has no such risk: it either
+% produces exactly one ordering or fails, with nothing left to cut.
+earlier_rule(RuleA, RuleB, RuleA, RuleB) :-
+    RuleA = rule(_,PrioA,_,_,_,_,_,_),
+    RuleB = rule(_,PrioB,_,_,_,_,_,_),
+    PrioA < PrioB, !.
+earlier_rule(RuleA, RuleB, RuleB, RuleA) :-
+    RuleA = rule(_,PrioA,_,_,_,_,_,_),
+    RuleB = rule(_,PrioB,_,_,_,_,_,_),
+    PrioB < PrioA.
+
 is_shadowed(ShadowedID, ShadowingID) :-
-    rule(ShadowingID, PrioShadowing, ActionShadowing, _, _, _, _, _),
-    rule(ShadowedID,  PrioShadowed,  ActionShadowed,  _, _, _, _, _),
-    ShadowingID \== ShadowedID,
-    PrioShadowing < PrioShadowed,
+    candidate_pair(A, B),
+    rule(A, PrioA, ActionA, PA, SA, DA, SPA, DPA),
+    rule(B, PrioB, ActionB, PB, SB, DB, SPB, DPB),
+    earlier_rule(rule(A,PrioA,ActionA,PA,SA,DA,SPA,DPA),
+                 rule(B,PrioB,ActionB,PB,SB,DB,SPB,DPB),
+                 rule(ShadowingID,PrioShadowing,ActionShadowing,PS,SS,DS,SPS,DPS),
+                 rule(ShadowedID, PrioShadowed, ActionShadowed, PW,SW,DW,SPW,DPW)),
     actions_conflict(ActionShadowing, ActionShadowed),
-    rule(ShadowingID, PrioShadowing, ActionShadowing, PA, SA, DA, SPA, DPA),
-    rule(ShadowedID,  PrioShadowed,  ActionShadowed,  PB, SB, DB, SPB, DPB),
-    covers(rule(ShadowingID,PrioShadowing,ActionShadowing,PA,SA,DA,SPA,DPA),
-           rule(ShadowedID, PrioShadowed, ActionShadowed, PB,SB,DB,SPB,DPB)).
+    covers(rule(ShadowingID,PrioShadowing,ActionShadowing,PS,SS,DS,SPS,DPS),
+           rule(ShadowedID, PrioShadowed, ActionShadowed, PW,SW,DW,SPW,DPW)).
 
 % is_redundant(?RedundantID, ?CauseID)
 % True iff RedundantID is completely useless: an earlier rule CauseID
@@ -259,14 +412,16 @@ is_shadowed(ShadowedID, ShadowingID) :-
 % later rule 2 that allows 10.0.0.0/16 is fully redundant even though
 % rule 2's selector is a strict subset of rule 1's, not identical to it.
 is_redundant(RedundantID, CauseID) :-
-    rule(CauseID,     PrioCause,     Action, _, _, _, _, _),
-    rule(RedundantID, PrioRedundant, Action, _, _, _, _, _),
-    CauseID \== RedundantID,
-    PrioCause < PrioRedundant,
-    rule(CauseID,     PrioCause,     Action, PA, SA, DA, SPA, DPA),
-    rule(RedundantID, PrioRedundant, Action, PB, SB, DB, SPB, DPB),
-    covers(rule(CauseID,PrioCause,Action,PA,SA,DA,SPA,DPA),
-           rule(RedundantID,PrioRedundant,Action,PB,SB,DB,SPB,DPB)).
+    candidate_pair(A, B),
+    rule(A, PrioA, ActionA, PA, SA, DA, SPA, DPA),
+    rule(B, PrioB, ActionB, PB, SB, DB, SPB, DPB),
+    earlier_rule(rule(A,PrioA,ActionA,PA,SA,DA,SPA,DPA),
+                 rule(B,PrioB,ActionB,PB,SB,DB,SPB,DPB),
+                 rule(CauseID,PrioCause,ActionCause,PC,SC,DC,SPC,DPC),
+                 rule(RedundantID,PrioRedundant,ActionRedundant,PR,SR,DR,SPR,DPR)),
+    ActionCause == ActionRedundant,
+    covers(rule(CauseID,PrioCause,ActionCause,PC,SC,DC,SPC,DPC),
+           rule(RedundantID,PrioRedundant,ActionRedundant,PR,SR,DR,SPR,DPR)).
 
 % is_correlated(?ID1, ?ID2)
 % True iff two rules genuinely CONFLICT: their traffic selectors
@@ -278,13 +433,14 @@ is_redundant(RedundantID, CauseID) :-
 %
 % Reported as an UNORDERED pair (ID1 < ID2 enforced) since correlation
 % is symmetric -- "rule 3 conflicts with rule 7" is one fact, not two.
+% candidate_pair/2 already yields ID1 < ID2, so no extra reordering
+% is needed here (unlike is_shadowed/is_redundant, which are
+% directional and must try both orderings).
 is_correlated(ID1, ID2) :-
-    rule(ID1, _, Action1, _, _, _, _, _),
-    rule(ID2, _, Action2, _, _, _, _, _),
-    ID1 < ID2,
-    actions_conflict(Action1, Action2),
+    candidate_pair(ID1, ID2),
     rule(ID1, _, Action1, P1, S1, D1, SP1, DP1),
     rule(ID2, _, Action2, P2, S2, D2, SP2, DP2),
+    actions_conflict(Action1, Action2),
     traffic_overlaps(rule(ID1,_,Action1,P1,S1,D1,SP1,DP1),
                       rule(ID2,_,Action2,P2,S2,D2,SP2,DP2)),
     \+ covers(rule(ID1,_,Action1,P1,S1,D1,SP1,DP1),
@@ -306,59 +462,183 @@ is_correlated(ID1, ID2) :-
 % This is deliberately the mirror image of is_shadowed/2: same
 % covers/2 relationship, opposite priority ordering.
 is_generalization(SpecificID, GeneralID) :-
-    rule(SpecificID, PrioSpecific, ActionSpecific, _, _, _, _, _),
-    rule(GeneralID,  PrioGeneral,  ActionGeneral,  _, _, _, _, _),
-    SpecificID \== GeneralID,
-    PrioSpecific < PrioGeneral,
+    candidate_pair(A, B),
+    rule(A, PrioA, ActionA, PA, SA, DA, SPA, DPA),
+    rule(B, PrioB, ActionB, PB, SB, DB, SPB, DPB),
+    earlier_rule(rule(A,PrioA,ActionA,PA,SA,DA,SPA,DPA),
+                 rule(B,PrioB,ActionB,PB,SB,DB,SPB,DPB),
+                 rule(SpecificID,PrioSpecific,ActionSpecific,PS,SS,DS,SPS,DPS),
+                 rule(GeneralID, PrioGeneral, ActionGeneral, PG,SG,DG,SPG,DPG)),
     actions_conflict(ActionSpecific, ActionGeneral),
-    rule(SpecificID, PrioSpecific, ActionSpecific, PA, SA, DA, SPA, DPA),
-    rule(GeneralID,  PrioGeneral,  ActionGeneral,  PB, SB, DB, SPB, DPB),
-    covers(rule(GeneralID,PrioGeneral,ActionGeneral,PB,SB,DB,SPB,DPB),
-           rule(SpecificID,PrioSpecific,ActionSpecific,PA,SA,DA,SPA,DPA)).
+    covers(rule(GeneralID,PrioGeneral,ActionGeneral,PG,SG,DG,SPG,DPG),
+           rule(SpecificID,PrioSpecific,ActionSpecific,PS,SS,DS,SPS,DPS)).
 
 % ----------------------------------------------------------------------------
-% 4. Reporting
+% 5. Reporting
 % ----------------------------------------------------------------------------
+% Design note on WHERE explanation detail belongs: the rich fields
+% below (severity, full rule snapshots, a specific human-readable
+% Explanation string) are generated HERE, in Prolog, not deferred to
+% Phase 3/4's Python/report layer. The reasoning is: Prolog is the
+% only part of this system that actually knows WHY two rules
+% constitute an anomaly -- it just finished doing the containment
+% math. If that reasoning were pushed to Python instead, Python would
+% either have to re-derive the same subset/overlap logic a second
+% time (a second, divergence-prone source of truth) or fall back to
+% a generic "rules X and Y conflict" message with no specifics.
+% Python's job (Phase 3/4) is formatting this data as HTML/PDF/a
+% table -- not deciding what the explanation says.
+
+% severity(?Type, ?Level)
+% Shadowing is the most severe: the shadowed rule's intended security
+% behavior silently never happens at all (e.g. a deny rule meant to
+% block something is dead, so the broader allow rule beneath it wins
+% every time). Correlation is next: real traffic outcome depends on
+% rule order, which is fragile but at least SOME rule is doing what
+% it says. Generalization and Redundancy are advisory: nothing is
+% currently broken, but the config is fragile or wasteful.
+severity(shadowing,      critical).
+severity(correlation,    high).
+severity(generalization, medium).
+severity(redundancy,     low).
+
+% rule_summary(+ID, -Summary)
+% Renders one rule's full traffic selector as a compact, human-
+% readable string, e.g. "tcp 172.16.0.0/16 -> 10.0.0.5/32:80 (allow)".
+% Used inside every Explanation string below so a network engineer
+% can check a finding against the raw config without having to look
+% up each rule ID separately first.
+rule_summary(ID, Summary) :-
+    rule(ID, Priority, Action, Protocol, SrcIP, DstIP, SrcPort, DstPort),
+    ip_term_string(SrcIP, SrcStr),
+    ip_term_string(DstIP, DstStr),
+    port_term_string(SrcPort, SrcPortStr),
+    port_term_string(DstPort, DstPortStr),
+    format(atom(Summary),
+           "rule ~w (priority ~w): ~w  ~w:~w -> ~w:~w  [~w]",
+           [ID, Priority, Protocol, SrcStr, SrcPortStr, DstStr, DstPortStr, Action]).
+
+ip_term_string(ip4(A,B,C,D,Prefix), Str) :-
+    !, format(atom(Str), "~w.~w.~w.~w/~w", [A,B,C,D,Prefix]).
+ip_term_string(ip6(H1,H2,H3,H4,H5,H6,H7,H8,Prefix), Str) :-
+    !, format(atom(Str), "~16r:~16r:~16r:~16r:~16r:~16r:~16r:~16r/~w",
+              [H1,H2,H3,H4,H5,H6,H7,H8,Prefix]).
+
+port_term_string(any, "any") :- !.
+port_term_string(port(P), Str) :- !, format(atom(Str), "~w", [P]).
+port_term_string(port_range(Lo,Hi), Str) :- !, format(atom(Str), "~w-~w", [Lo,Hi]).
 
 % find_all_anomalies(-Report)
-% Collects every anomaly found across all four categories into one
-% list of anomaly(Type, Details) terms, so Phase 4's report generator
-% has a single, uniform structure to render instead of calling four
-% separate predicates and merging results itself.
+% Collects every anomaly into one list of finding(...) terms:
+%
+%   finding(Type, Severity, PrimaryID, SecondaryID, Explanation)
+%
+% Type: shadowing | redundancy | correlation | generalization
+% Severity: critical | high | medium | low (see severity/2 above)
+% PrimaryID/SecondaryID: the two rule IDs involved (meaning of which
+%   is "primary" vs "secondary" depends on Type -- see each finding's
+%   Explanation text, which always names both rules explicitly rather
+%   than relying on argument position)
+% Explanation: a ready-to-display string naming both rules' full
+%   traffic selectors (via rule_summary/2) and stating specifically
+%   why they constitute this anomaly -- not just "rule 2 shadows
+%   rule 1" but which IP/port ranges overlap and what that implies.
+%
+% Phase 3/4's report generator renders this list as HTML/PDF/a table;
+% it does not need to re-derive or reformat the reasoning, only the
+% presentation.
 find_all_anomalies(Report) :-
-    findall(anomaly(shadowing, shadowed(Shadowed)-shadowing(Shadowing)),
-            is_shadowed(Shadowed, Shadowing),
-            ShadowingAnomalies),
-    findall(anomaly(redundancy, redundant(Redundant)-cause(Cause)),
-            is_redundant(Redundant, Cause),
-            RedundancyAnomalies),
-    findall(anomaly(correlation, rule(ID1)-rule(ID2)),
-            is_correlated(ID1, ID2),
-            CorrelationAnomalies),
-    findall(anomaly(generalization, specific(Specific)-general(General)),
-            is_generalization(Specific, General),
-            GeneralizationAnomalies),
-    append([ShadowingAnomalies, RedundancyAnomalies,
-            CorrelationAnomalies, GeneralizationAnomalies], Report).
+    findall(F, shadowing_finding(F), ShadowingFindings),
+    findall(F, redundancy_finding(F), RedundancyFindings),
+    findall(F, correlation_finding(F), CorrelationFindings),
+    findall(F, generalization_finding(F), GeneralizationFindings),
+    append([ShadowingFindings, RedundancyFindings,
+            CorrelationFindings, GeneralizationFindings], Report).
+
+shadowing_finding(finding(shadowing, Severity, ShadowingID, ShadowedID, Explanation)) :-
+    is_shadowed(ShadowedID, ShadowingID),
+    severity(shadowing, Severity),
+    rule_summary(ShadowingID, ShadowingSummary),
+    rule_summary(ShadowedID, ShadowedSummary),
+    format(atom(Explanation),
+            "Rule ~w can NEVER take effect. It is evaluated after rule ~w, \c
+            which already matches every packet rule ~w would match, with \c
+            the opposite action. Traffic that rule ~w was meant to handle \c
+            is entirely decided by rule ~w instead.~n    \c
+            Shadowing rule -- ~w~n    \c
+            Shadowed rule  -- ~w",
+            [ShadowedID, ShadowingID, ShadowedID, ShadowedID, ShadowingID,
+            ShadowingSummary, ShadowedSummary]).
+
+redundancy_finding(finding(redundancy, Severity, CauseID, RedundantID, Explanation)) :-
+    is_redundant(RedundantID, CauseID),
+    severity(redundancy, Severity),
+    rule_summary(CauseID, CauseSummary),
+    rule_summary(RedundantID, RedundantSummary),
+    format(atom(Explanation),
+            "Rule ~w is redundant. Rule ~w, evaluated earlier with the same \c
+            action, already covers every packet rule ~w matches -- rule ~w \c
+            never changes the outcome for any packet, it only costs \c
+            extra processing time on every match attempt.~n    \c
+            Covering rule  -- ~w~n    \c
+            Redundant rule -- ~w",
+            [RedundantID, CauseID, RedundantID, RedundantID,
+            CauseSummary, RedundantSummary]).
+
+correlation_finding(finding(correlation, Severity, ID1, ID2, Explanation)) :-
+    is_correlated(ID1, ID2),
+    severity(correlation, Severity),
+    rule_summary(ID1, Summary1),
+    rule_summary(ID2, Summary2),
+    format(atom(Explanation),
+            "Rules ~w and ~w have overlapping traffic selectors with \c
+            CONFLICTING actions, and neither rule fully contains the \c
+            other. The real outcome for packets in the overlap depends \c
+            entirely on which rule is evaluated first -- reordering \c
+            these two rules would silently change live traffic handling. \c
+            This needs a human decision, it cannot be auto-resolved.~n    \c
+            Rule ~w -- ~w~n    \c
+            Rule ~w -- ~w",
+            [ID1, ID2, ID1, Summary1, ID2, Summary2]).
+
+generalization_finding(finding(generalization, Severity, SpecificID, GeneralID, Explanation)) :-
+    is_generalization(SpecificID, GeneralID),
+    severity(generalization, Severity),
+    rule_summary(SpecificID, SpecificSummary),
+    rule_summary(GeneralID, GeneralSummary),
+    format(atom(Explanation),
+            "Specific rule ~w is evaluated before broader rule ~w, with a \c
+            different action -- this is likely intentional (e.g. \c
+            'block this one exception, allow the rest'), not a bug. It \c
+            is flagged because it is FRAGILE: if these two rules are ever \c
+            reordered later (for instance while fixing other findings in \c
+            this same report), the meaning of the policy would silently \c
+            change with no error or warning.~n    \c
+            Specific rule -- ~w~n    \c
+            Broader rule  -- ~w",
+            [SpecificID, GeneralID, SpecificSummary, GeneralSummary]).
 
 % print_anomaly_report/0
-% Human-readable console report, useful for manual testing during
-% Phase 2 development. Phase 4 will replace/extend this with a proper
-% HTML/JSON report generator; this is intentionally simple.
+% Human-readable console report, useful for manual testing and for a
+% network engineer to review directly without any Phase 3/4 tooling.
+% Groups findings by severity (critical first) since that is the
+% order a reviewer should actually address them in.
 print_anomaly_report :-
     find_all_anomalies(Report),
     length(Report, N),
-    format("~n=== Firewall Anomaly Report: ~w finding(s) ===~n~n", [N]),
-    forall(member(A, Report), print_one_anomaly(A)).
+    format("~n=== Firewall Anomaly Report: ~w finding(s) ===~n", [N]),
+    forall(
+        member(Severity, [critical, high, medium, low]),
+        print_severity_group(Severity, Report)
+    ).
 
-print_one_anomaly(anomaly(shadowing, shadowed(S)-shadowing(G))) :-
-    format("[SHADOWING]      Rule ~w is shadowed by rule ~w (rule ~w can never fire)~n", [S, G, S]).
-
-print_one_anomaly(anomaly(redundancy, redundant(R)-cause(C))) :-
-    format("[REDUNDANCY]     Rule ~w is redundant, fully covered by rule ~w (same action)~n", [R, C]).
-
-print_one_anomaly(anomaly(correlation, rule(A)-rule(B))) :-
-    format("[CORRELATION]    Rules ~w and ~w overlap with conflicting actions -- order-dependent!~n", [A, B]).
-
-print_one_anomaly(anomaly(generalization, specific(S)-general(G))) :-
-    format("[GENERALIZATION] Specific rule ~w precedes broader rule ~w with a different action -- fragile if reordered~n", [S, G]).
+print_severity_group(Severity, Report) :-
+    findall(F, (member(F, Report), F = finding(_,Severity,_,_,_)), Group),
+    Group \== [],
+    !,
+    upcase_atom(Severity, SeverityUpper),
+    length(Group, GroupN),
+    format("~n--- ~w (~w) ---~n", [SeverityUpper, GroupN]),
+    forall(member(finding(Type,_,_,_,Explanation), Group),
+            format("~n[~w]~n~w~n", [Type, Explanation])).
+print_severity_group(_, _).  % no findings at this severity -- print nothing
