@@ -1,438 +1,197 @@
-#  FirewallLogic
-## Automated Firewall Policy Auditing & Formal Verification Engine
+# FirewallLogic  
+## Automated Firewall Policy Auditing & Formal Verification Engine  
 
 <p align="center">
-
-A hybrid symbolic reasoning framework for detecting firewall rule anomalies using Logic Programming and Computational Geometry optimization.
-
+  <img src="https://img.shields.io/badge/Python-3.8%2B-blue?logo=python" alt="Python">
+  <img src="https://img.shields.io/badge/SWI--Prolog-8.0%2B-red?logo=swi-prolog" alt="SWI-Prolog">
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
-
 
 ---
 
 ## 📌 Overview
 
-Modern enterprise networks rely heavily on Next Generation Firewalls (NGFWs) to enforce security policies.
+Modern enterprise networks rely heavily on Next‑Generation Firewalls (NGFWs) to enforce security policies. However, as firewall configurations grow, manual rule management becomes increasingly difficult and error‑prone. Large‑scale policies often hide logical inconsistencies such as:
 
-However, as firewall configurations grow, manual rule management becomes increasingly difficult and error-prone.
+- **Shadowed rules** – rules that never match  
+- **Redundant policies** – duplicate or unnecessary entries  
+- **Conflicting permissions** – overlapping rules with contradictory actions  
+- **Unreachable rules** – rules positioned after more general ones  
+- **Overlapping access conditions** – ambiguous decision paths  
 
-Large-scale firewall policies often contain hidden logical inconsistencies such as:
-
-- Shadowed rules
-- Redundant policies
-- Conflicting permissions
-- Unreachable rules
-- Overlapping access conditions
-
-
-FirewallLogic is an automated static analysis framework designed to formally verify firewall policies without interacting with live network traffic.
-
-The system transforms firewall configurations into logical facts and applies symbolic reasoning techniques to prove policy correctness.
-
+**FirewallLogic** is an automated static analysis framework that formally verifies firewall policies **without** interacting with live network traffic. It transforms configuration files into logical facts and applies symbolic reasoning techniques to prove policy correctness.
 
 ---
 
-# 🎯 Research Motivation
+## 🎯 Research Motivation
 
-Firewall rule evaluation follows a:
+Firewall rule evaluation follows a **top‑down, first‑match, priority‑based** execution model. A single incorrect rule ordering can unintentionally:
 
+- Disable security policies  
+- Create unauthorised access paths  
+- Increase firewall processing overhead  
 
-Top-Down
-First-Match
-Priority-Based
-
-
-execution model.
-
-A single incorrect rule ordering can unintentionally:
-
-- Disable security policies
-- Create unauthorized access paths
-- Increase firewall processing overhead
-
-
-FirewallLogic addresses this problem through:
-
-
-Firewall Configuration
-
-    |
-    v
-
-Python Parser
-
-    |
-    v
-
-Logical Representation
-
-    |
-    v
-
-SWI-Prolog Inference Engine
-
-    |
-    v
-
-Security Analysis Report
-
-
+This project bridges the gap between **cybersecurity**, **formal methods**, and **algorithmic optimisation** to provide a robust verification tool.
 
 ---
 
-# 🏗️ System Architecture
+## 🏗️ System Architecture
 
-
-             Firewall Configuration
-          (JSON / CSV / Vendor Export)
-
-                     |
-                     v
-
-          +--------------------+
-          | Python Parser      |
-          +--------------------+
-
-                     |
-                     v
-
-          Firewall Facts
-          (Logical Rules)
-
-                     |
-                     v
-
-          +--------------------+
-          | SWI-Prolog Engine |
-          +--------------------+
-
-                     |
-                     v
-
-          Anomaly Detection
-
-                     |
-                     v
-
-          Intelligent Report
-
+```
+     Firewall Configuration
+  (JSON / CSV / Vendor Export)
+              │
+              ▼
+     ┌─────────────────┐
+     │  Python Parser  │
+     └─────────────────┘
+              │
+              ▼
+     Firewall Facts
+   (Logical Predicates)
+              │
+              ▼
+     ┌─────────────────┐
+     │ SWI‑Prolog      │
+     │ Inference Engine│
+     └─────────────────┘
+              │
+              ▼
+   Anomaly Detection
+              │
+              ▼
+     Intelligent Report
+```
 
 ---
 
-# 🧠 Core Technologies
+## 🧠 Core Technologies
 
-
-| Component | Technology |
-|-|-|
-| Policy Parser | Python |
-| Reasoning Engine | SWI-Prolog |
-| Formal Rule Analysis | Logic Programming |
-| Optimization | Sweep-Line Algorithm |
-| Data Structures | Interval Tree |
-| Reporting | Python |
-
+| Component            | Technology          |
+|----------------------|---------------------|
+| Policy Parser        | Python 3.8+         |
+| Reasoning Engine     | SWI‑Prolog 8.0+     |
+| Formal Rule Analysis | Logic Programming   |
+| Optimisation         | Sweep‑Line Algorithm|
+| Data Structures      | Interval Trees      |
+| Reporting            | Python (JSON/HTML)  |
 
 ---
 
-# 🔍 Detected Firewall Anomalies
+## 🔍 Detected Firewall Anomalies
 
-
-## 1. Shadowing Detection
-
+### 1. Shadowing Detection  
 A rule becomes unreachable when an earlier rule completely covers its condition.
 
-
-Example:
-
-
-Rule 1:
-ALLOW 192.168.1.0/24 ANY
-
-Rule 2:
-DENY 192.168.1.10/32 SSH
-
-
-Rule 2 will never execute.
-
+**Example:**  
+```
+Rule 1: ALLOW  192.168.1.0/24   ANY
+Rule 2: DENY   192.168.1.10/32  SSH
+```
+→ Rule 2 will never execute.
 
 ---
 
-## 2. Redundancy Detection
-
+### 2. Redundancy Detection  
 Detects duplicated or unnecessary policies.
 
-Example:
-
-
-ALLOW 10.0.0.0/8 HTTP
-
-ALLOW 10.0.0.0/8 HTTP
-
-
+**Example:**  
+```
+ALLOW  10.0.0.0/8   HTTP
+ALLOW  10.0.0.0/8   HTTP   ← duplicate
+```
 
 ---
 
-## 3. Conflict Detection
-
+### 3. Conflict Detection  
 Identifies overlapping rules with contradictory actions.
 
-
-Example:
-
-
-Rule 10:
-ALLOW subnet_A port 443
-
-Rule 11:
-DENY subnet_A port 443
-
-
+**Example:**  
+```
+Rule 10: ALLOW   subnet_A   port 443
+Rule 11: DENY    subnet_A   port 443
+```
 
 ---
 
-## 4. Generalization Detection
-
+### 4. Generalisation Detection  
 Finds incorrectly ordered rules where specific policies appear after broader ones.
 
+---
+
+## ⚡ Algorithm Optimisation
+
+### The Problem  
+Naive anomaly detection compares every rule against every other rule — **O(N²)** complexity. For **10,000** firewall rules, this means **100,000,000** comparisons, making large‑scale analysis impractical.
+
+### Proposed Optimisation  
+FirewallLogic introduces a preprocessing step based on the **Sweep‑Line Algorithm**, originally used in computational geometry for detecting overlapping intervals.
+
+Instead of comparing all rules, we extract only **possible overlapping candidates** using IP range indexing:
+
+```
+    IP Range Index
+         │
+         ▼
+ Candidate Rule Pairs
+         │
+         ▼
+ Formal Verification
+```
+
+**Complexity reduction:**  
+- Before: O(N²)  
+- After:  **O(N log N)**  
+
+The Prolog engine performs symbolic reasoning only on the candidate pairs that truly matter.
 
 ---
 
-# ⚡ Algorithm Optimization
-
-
-## Problem
-
-Naive anomaly detection compares every rule against every other rule:
-
-
-
-O(N²)
-
-
-
-For:
-
-
-10,000 firewall rules
-
-
-The system performs:
-
-
-100,000,000 comparisons
-
-
-
-which makes large-scale analysis impractical.
-
-
----
-
-# 🚀 Proposed Optimization
-
-FirewallLogic introduces a preprocessing optimization based on:
-
-## Sweep-Line Algorithm
-
-
-Originally used in Computational Geometry for detecting overlapping intervals.
-
-
-Instead of comparing every rule:
-
-
-Rule A <---->
-
-Rule B <---->
-
-Compare everything
-
-
-we extract only possible overlapping candidates:
-
-
-
-IP Range Index
-
-    |
-    v
-
-Candidate Rule Pairs
-
-    |
-    v
-
-Formal Verification
-
-
-
-Complexity:
-
-
-Before:
-
-
-O(N²)
-
-
-
-After:
-
-
-
-O(N log N)
-
-
-
-The Prolog engine performs reasoning only on meaningful candidates.
-
-
----
-
-# 🧩 Implementation Roadmap
-
-
-## Phase 1
-### IP/Subnet Logic Engine
-
-- IP representation
-- Subnet comparison
-- Port range reasoning
-
-
-Output:
-
-
-subnet_logic.pl
-
-
-
----
-
-## Phase 2
-### Firewall Anomaly Engine
-
-Implementation of:
-
-
-- Shadowing
-- Redundancy
-- Conflict
-- Generalization
-
-
-Output:
-
-
-firewall_engine.pl
-
-
-
----
-
-## Phase 3
-### Python-Prolog Integration
-
-Features:
-
-- Dynamic fact injection
-- Configuration parsing
-- Automated analysis pipeline
-
-
-Technologies:
-
-
-Python
-PySWIP
-SWI-Prolog
-
-
-
----
-
-## Phase 4
-### Reporting & Remediation
-
-
-Generate:
-
-
-- JSON Reports
-- HTML Reports
-- Suggested Fixes
-
-
-Example:
-
-
-Recommendation:
-
-Move Rule 15 before Rule 3
-
-Reason:
-Rule 3 shadows Rule 15
-
-
-
----
-
-# 📊 Example Output
-
+## 📊 Example Output
 
 ```json
 {
- "rule":15,
- "type":"Shadowing",
- "severity":"High",
- "cause":
- "Covered by Rule 3",
- "recommendation":
- "Reorder firewall policy"
+  "rule": 15,
+  "type": "Shadowing",
+  "severity": "High",
+  "cause": "Covered by Rule 3",
+  "recommendation": "Reorder firewall policy – move Rule 15 before Rule 3"
 }
-🔬 Research Contribution
+```
+
+---
+
+## 🔬 Research Contribution
 
 This project explores the intersection of:
 
-Cybersecurity
-Formal Methods
-Logic Programming
-Computational Geometry
-Automated Reasoning
+- **Cybersecurity**  
+- **Formal Methods**  
+- **Logic Programming**  
+- **Computational Geometry**  
+- **Automated Reasoning**  
 
-The main research idea is combining:
+The core idea is to combine **symbolic reasoning** with **algorithmic optimisation** for scalable security policy verification.
 
-Symbolic Reasoning
+---
 
-+
+## 🚀 Future Work
 
-Algorithmic Optimization
+- Support for **Fortinet FortiGate**, **Cisco ASA**, and **Palo Alto** parsers  
+- **Machine Learning** based risk scoring  
+- Natural‑language explanation of policy violations  
+- **Neuro‑symbolic** policy reasoning  
 
-+
+---
 
-Security Policy Verification
-🛣️ Future Work
+## 👨‍💻 Author
 
-Possible extensions:
+**Moein Hassanpour**  
+Computer Science Student  
+Research Interests: Neuro‑Symbolic AI, Cybersecurity, Formal Verification, Intelligent Systems
 
-Support Fortinet FortiGate
-Cisco ASA parser
-Palo Alto parser
-Machine Learning based risk scoring
-Natural Language firewall explanation
-Neuro-Symbolic policy reasoning
-👨‍💻 Author
+---
 
-Moein Hassanpour
+## 📜 License
 
-Computer Science Student
-
-Research Interests:
-
-Neuro-Symbolic AI
-Cybersecurity
-Formal Verification
-Intelligent Systems
-📜 License
-
-MIT License
+This project is licensed under the **MIT License** – see the [LICENSE](LICENSE) file for details.
