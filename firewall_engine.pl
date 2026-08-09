@@ -3,6 +3,15 @@
 %
 % Project 1, Phase 2 -- Anomaly detection engine
 % ----------------------------------------------------------------------------
+:- encoding(utf8).
+% The line above is REQUIRED, and must be the first directive in the
+% file: report text below (Explanation strings, severity labels) is
+% written in Persian/Farsi. Without this, SWI-Prolog reads the source
+% file using its default encoding and Persian characters get mangled
+% (either at load time or When printed). It must appear before any
+% Persian text is used anywhere below, including in comments that
+% quote Persian output for documentation purposes.
+%
 % Builds on ip_subnet.pl (Phase 1) to detect the four classic firewall
 % policy anomalies from Kotenko/Al-Shaer-style policy anomaly literature,
 % and referenced in the internship proposal:
@@ -45,6 +54,7 @@
     is_correlated/2,
     is_generalization/2,
     find_all_anomalies/1,
+    find_all_anomalies_janus/1,
     print_anomaly_report/0
 ]).
 
@@ -546,10 +556,14 @@ is_generalization_pair(A, B, SpecificID, GeneralID) :-
                  rule(GeneralID, PrioGeneral, ActionGeneral, PG,SG,DG,SPG,DPG)),
     actions_conflict(ActionSpecific, ActionGeneral),
     covers(rule(GeneralID,PrioGeneral,ActionGeneral,PG,SG,DG,SPG,DPG),
-           rule(SpecificID,PrioSpecific,ActionSpecific,PS,SS,DS,SPS,DPS)).
+           rule(SpecificID,PrioSpecific,ActionSpecific,PS,SS,DS,SPS,DPS)),
+    % Generalization requires strict containment.  If both rules cover the
+    % same traffic, the later conflicting rule is shadowed, not generalized.
+    \+ covers(rule(SpecificID,PrioSpecific,ActionSpecific,PS,SS,DS,SPS,DPS),
+              rule(GeneralID,PrioGeneral,ActionGeneral,PG,SG,DG,SPG,DPG)).
 
 % ----------------------------------------------------------------------------
-% 5. Reporting
+% 4. Reporting
 % ----------------------------------------------------------------------------
 % Design note on WHERE explanation detail belongs: the rich fields
 % below (severity, full rule snapshots, a specific human-readable
@@ -572,17 +586,41 @@ is_generalization_pair(A, B, SpecificID, GeneralID) :-
 % rule order, which is fragile but at least SOME rule is doing what
 % it says. Generalization and Redundancy are advisory: nothing is
 % currently broken, but the config is fragile or wasteful.
+%
+% Level stays an English atom (critical/high/medium/low) on purpose --
+% Phase 3/4's Python layer, or any future caller, can match/sort on it
+% directly without needing to know it's currently displayed in
+% Persian. severity_fa/2 below maps each level to its Persian display
+% label; that mapping is a presentation concern only, so it lives
+% right next to print_anomaly_report/0's other Persian text, not here.
 severity(shadowing,      critical).
 severity(correlation,    high).
 severity(generalization, medium).
 severity(redundancy,     low).
 
+severity_label(critical, 'بحرانی').
+severity_label(high,     'شدید').
+severity_label(medium,   'متوسط').
+severity_label(low,      'کم').
+
+type_label(shadowing,      'سایه‌خوردگی').
+type_label(redundancy,     'افزونگی').
+type_label(correlation,    'تداخل / تعارض').
+type_label(generalization, 'تعمیم').
+
 % rule_summary(+ID, -Summary)
 % Renders one rule's full traffic selector as a compact, human-
-% readable string, e.g. "tcp 172.16.0.0/16 -> 10.0.0.5/32:80 (allow)".
+% readable Persian string, while preserving directly comparable technical data.
 % Used inside every Explanation string below so a network engineer
 % can check a finding against the raw config without having to look
 % up each rule ID separately first.
+%
+% IDs, priorities, IPs, ports, protocol names, and action names are
+% deliberately kept as plain (Western Arabic) digits and English
+% tokens: these values must be directly comparable/copy-pasteable
+% against the raw config and against Phase 3/4 tooling, so they are
+% NOT transliterated into Persian digits. Only the surrounding
+% narrative text (in the Explanation strings below) is in Persian.
 rule_summary(ID, Summary) :-
     rule(ID, Priority, Action, Protocol, SrcIP, DstIP, SrcPort, DstPort),
     ip_term_string(SrcIP, SrcStr),
@@ -590,7 +628,7 @@ rule_summary(ID, Summary) :-
     port_term_string(SrcPort, SrcPortStr),
     port_term_string(DstPort, DstPortStr),
     format(atom(Summary),
-           "rule ~w (priority ~w): ~w  ~w:~w -> ~w:~w  [~w]",
+           "قانون ~w (اولویت ~w): ~w  ~w:~w -> ~w:~w  [~w]",
            [ID, Priority, Protocol, SrcStr, SrcPortStr, DstStr, DstPortStr, Action]).
 
 ip_term_string(ip4(A,B,C,D,Prefix), Str) :-
@@ -639,19 +677,68 @@ find_all_anomalies(Report) :-
     append([ShadowingFindings, RedundancyFindings,
             CorrelationFindings, GeneralizationFindings], Report).
 
+% find_all_anomalies_janus(-ListOfLists)
+% Flattening wrapper around find_all_anomalies/1, for Python bridge
+% (bridge.py) backends that need finding/5 terms converted to plain
+% lists before they cross into Python. Despite the name, this is now
+% used by BOTH of bridge.py's backends' happy paths that go through
+% pyswip -- not only a Janus-specific one. The name is kept as-is
+% rather than renamed (e.g. to find_all_anomalies_flat/1), because this
+% predicate is part of Phase 2's frozen, exhaustively-tested surface;
+% renaming it would be a purely cosmetic change to already-verified
+% code for no behavioral benefit, and would force bridge.py's Prolog
+% queries to change in lockstep for the same no-benefit reason.
+%
+% WHY THIS EXISTS (original reason, still the binding constraint for
+% Janus, and still the simplest contract for pyswip too):
+% Janus's Prolog<->Python data conversion table
+% (https://www.swi-prolog.org/pldoc/man?section=janus-data) converts
+% Lists, atoms, numbers, and the pair functor '-'(A,B) automatically --
+% but a general compound term with any OTHER functor/arity, which is
+% exactly what finding/5 is, has no defined conversion and raises
+% type_error(py_term, ...) the moment Janus tries to hand it back to
+% Python. This is not a version issue and does not go away on newer
+% SWI-Prolog/janus-swi -- it is how the conversion table is defined.
+% So find_all_anomalies/1 itself is NOT safe to call directly via
+% janus.query_once/2 when its result crosses back into Python.
+%
+% pyswip's own conversion is more permissive -- it CAN hand a compound
+% term back to Python as a Term/Functor object, so a pyswip backend
+% could in principle call find_all_anomalies/1 directly and unpack
+% finding/5 on the Python side. bridge.py's pyswip backend deliberately
+% does not do that: reusing this already-flattened, already-tested
+% predicate keeps exactly one Prolog-side contract shared by every
+% Python backend (pyswip and subprocess alike), so a future change to
+% finding/5's shape only ever needs to be reflected in ONE place
+% (finding_to_list/2 immediately below) instead of once per backend.
+%
+% Fix: do the flattening on the Prolog side, where compound terms are
+% completely normal, and hand the Python side only what every backend
+% already knows how to convert -- here, a list of 5-element lists
+% (List -> List is native for both Janus and pyswip). The subprocess
+% backend does NOT need this at all: it talks to Prolog via stdout
+% text (see print format in _build_prolog_script in bridge.py), so
+% finding/5's structure never has to cross a typed FFI boundary there.
+find_all_anomalies_janus(ListOfLists) :-
+    find_all_anomalies(Report),
+    maplist(finding_to_list, Report, ListOfLists).
+
+finding_to_list(finding(Type, Severity, PrimaryID, SecondaryID, Explanation),
+                [Type, Severity, PrimaryID, SecondaryID, Explanation]).
+
 shadowing_finding(Pairs, finding(shadowing, Severity, ShadowingID, ShadowedID, Explanation)) :-
     is_shadowed(Pairs, ShadowedID, ShadowingID),
     severity(shadowing, Severity),
     rule_summary(ShadowingID, ShadowingSummary),
     rule_summary(ShadowedID, ShadowedSummary),
     format(atom(Explanation),
-           "Rule ~w can NEVER take effect. It is evaluated after rule ~w, \c
-            which already matches every packet rule ~w would match, with \c
-            the opposite action. Traffic that rule ~w was meant to handle \c
-            is entirely decided by rule ~w instead.~n    \c
-            Shadowing rule -- ~w~n    \c
-            Shadowed rule  -- ~w",
-           [ShadowedID, ShadowingID, ShadowedID, ShadowedID, ShadowingID,
+           "قانون ~w هرگز اجرا نمی‌شود. قانون ~w زودتر ارزیابی می‌شود، \c
+            تمام بسته‌های قانون ~w را پوشش می‌دهد و عملکرد متضاد دارد؛ \c
+            بنابراین ترافیک موردنظر قانون ~w کاملاً توسط قانون ~w تصمیم‌گیری \c
+            می‌شود.~n    \c
+            قانون سایه‌انداز (فعال) -- ~w~n    \c
+            قانون سایه‌خورده (غیرقابل‌دسترسی) -- ~w",
+           [ShadowedID, ShadowingID, ShadowingID, ShadowedID, ShadowingID,
             ShadowingSummary, ShadowedSummary]).
 
 redundancy_finding(Pairs, finding(redundancy, Severity, CauseID, RedundantID, Explanation)) :-
@@ -660,12 +747,11 @@ redundancy_finding(Pairs, finding(redundancy, Severity, CauseID, RedundantID, Ex
     rule_summary(CauseID, CauseSummary),
     rule_summary(RedundantID, RedundantSummary),
     format(atom(Explanation),
-           "Rule ~w is redundant. Rule ~w, evaluated earlier with the same \c
-            action, already covers every packet rule ~w matches -- rule ~w \c
-            never changes the outcome for any packet, it only costs \c
-            extra processing time on every match attempt.~n    \c
-            Covering rule  -- ~w~n    \c
-            Redundant rule -- ~w",
+           "قانون ~w افزونه است. قانون ~w زودتر ارزیابی می‌شود، همان عملکرد \c
+            را دارد و تمام بسته‌های قانون ~w را پوشش می‌دهد؛ بنابراین قانون \c
+            ~w هیچ تصمیمی را تغییر نمی‌دهد و فقط پردازش اضافه ایجاد می‌کند.~n    \c
+            قانون پوشش‌دهنده -- ~w~n    \c
+            قانون افزونه -- ~w",
            [RedundantID, CauseID, RedundantID, RedundantID,
             CauseSummary, RedundantSummary]).
 
@@ -675,14 +761,12 @@ correlation_finding(Pairs, finding(correlation, Severity, ID1, ID2, Explanation)
     rule_summary(ID1, Summary1),
     rule_summary(ID2, Summary2),
     format(atom(Explanation),
-           "Rules ~w and ~w have overlapping traffic selectors with \c
-            CONFLICTING actions, and neither rule fully contains the \c
-            other. The real outcome for packets in the overlap depends \c
-            entirely on which rule is evaluated first -- reordering \c
-            these two rules would silently change live traffic handling. \c
-            This needs a human decision, it cannot be auto-resolved.~n    \c
-            Rule ~w -- ~w~n    \c
-            Rule ~w -- ~w",
+           "قوانین ~w و ~w ترافیک هم‌پوشان و عملکرد متضاد دارند، اما هیچ‌کدام \c
+            دیگری را کامل پوشش نمی‌دهد. نتیجهٔ ترافیک مشترک به ترتیب قوانین \c
+            وابسته است و جابه‌جایی آن‌ها می‌تواند رفتار را تغییر دهد؛ بازبینی \c
+            دستی لازم است.~n    \c
+            قانون ~w -- ~w~n    \c
+            قانون ~w -- ~w",
            [ID1, ID2, ID1, Summary1, ID2, Summary2]).
 
 generalization_finding(Pairs, finding(generalization, Severity, SpecificID, GeneralID, Explanation)) :-
@@ -691,26 +775,24 @@ generalization_finding(Pairs, finding(generalization, Severity, SpecificID, Gene
     rule_summary(SpecificID, SpecificSummary),
     rule_summary(GeneralID, GeneralSummary),
     format(atom(Explanation),
-           "Specific rule ~w is evaluated before broader rule ~w, with a \c
-            different action -- this is likely intentional (e.g. \c
-            'block this one exception, allow the rest'), not a bug. It \c
-            is flagged because it is FRAGILE: if these two rules are ever \c
-            reordered later (for instance while fixing other findings in \c
-            this same report), the meaning of the policy would silently \c
-            change with no error or warning.~n    \c
-            Specific rule -- ~w~n    \c
-            Broader rule  -- ~w",
+           "قانون خاص ~w پیش از قانون کلی‌تر ~w با عملکرد متفاوت ارزیابی می‌شود. \c
+            این حالت می‌تواند عمدی باشد، مثلاً برای مسدودکردن یک استثنا و \c
+            مجازکردن باقی زیرشبکه. این مورد به‌دلیل شکنندگی ترتیب قوانین \c
+            علامت‌گذاری می‌شود؛ جابه‌جایی آن‌ها می‌تواند رفتار سیاست را تغییر دهد.~n    \c
+            قانون خاص -- ~w~n    \c
+            قانون کلی -- ~w",
            [SpecificID, GeneralID, SpecificSummary, GeneralSummary]).
 
 % print_anomaly_report/0
-% Human-readable console report, useful for manual testing and for a
-% network engineer to review directly without any Phase 3/4 tooling.
-% Groups findings by severity (critical first) since that is the
-% order a reviewer should actually address them in.
+% Human-readable Persian console report, useful for manual
+% testing and for a network engineer to review directly without any
+% Phase 3/4 tooling. Groups findings by severity (critical first)
+% since that is the order a reviewer should actually address them in.
+%
 print_anomaly_report :-
     find_all_anomalies(Report),
     length(Report, N),
-    format("~n=== Firewall Anomaly Report: ~w finding(s) ===~n", [N]),
+    format("~n=== گزارش آنومالی‌های فایروال: ~w یافته ===~n", [N]),
     forall(
         member(Severity, [critical, high, medium, low]),
         print_severity_group(Severity, Report)
@@ -720,9 +802,10 @@ print_severity_group(Severity, Report) :-
     findall(F, (member(F, Report), F = finding(_,Severity,_,_,_)), Group),
     Group \== [],
     !,
-    upcase_atom(Severity, SeverityUpper),
+    severity_label(Severity, SeverityLabel),
     length(Group, GroupN),
-    format("~n--- ~w (~w) ---~n", [SeverityUpper, GroupN]),
+    format("~n--- ~w (~w مورد) ---~n", [SeverityLabel, GroupN]),
     forall(member(finding(Type,_,_,_,Explanation), Group),
-           format("~n[~w]~n~w~n", [Type, Explanation])).
+           ( type_label(Type, TypeLabel),
+             format("~n[~w]~n~w~n", [TypeLabel, Explanation]) )).
 print_severity_group(_, _).  % no findings at this severity -- print nothing
