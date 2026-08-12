@@ -360,9 +360,9 @@ The repository therefore serves as a practical undergraduate research artifact d
 ## Author
 
 **Moein Hassanpour**  
-Computer Science Undergraduate
+Software Engineering Undergraduate
 
-Research interests: **Logic-Based AI · Symbolic AI · Explainable/Interpretable AI · Neuro-Symbolic AI · AI for Cybersecurity · Algorithms & Data Analysis**
+Research interests: **Logic-Based AI · Symbolic AI · Explainable/Interpretable AI · Neuro-Symbolic AI · Data Analysis**
 
 ---
 
