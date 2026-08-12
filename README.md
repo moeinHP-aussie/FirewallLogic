@@ -16,6 +16,27 @@
 
 ---
 
+## Table of Contents
+
+- [Abstract](#abstract)
+- [Research Motivation](#research-motivation)
+- [Key Contributions](#key-contributions)
+- [System Architecture](#system-architecture)
+- [Sweep-Line Optimization](#sweep-line-optimization)
+- [Experimental Result](#experimental-result)
+- [Symbolic Anomaly Detection](#symbolic-anomaly-detection)
+- [Supported Analysis Features](#supported-analysis-features)
+- [Repository Structure](#repository-structure)
+- [Quick Start](#quick-start)
+- [Screenshots & Experimental Outputs](#screenshots--experimental-outputs)
+- [Research Interests & Academic Alignment](#research-interests--academic-alignment)
+- [Limitations](#limitations)
+- [Future Research Directions](#future-research-directions)
+- [Author](#author)
+- [License](#license)
+
+---
+
 ## Abstract
 
 **FirewallLogic** is a hybrid Python–Prolog system for automatically auditing firewall policies and detecting four classes of rule anomalies:
@@ -60,38 +81,25 @@ The optimization is therefore deliberately placed **before** the reasoning layer
 
 ## System Architecture
 
-```text
-Firewall Configuration
-        │
-        ▼
-┌──────────────────────┐
-│ Python Parser        │
-│ iptables / nftables  │
-└──────────┬───────────┘
-           │
-           ▼
-┌──────────────────────┐
-│ Rule Normalization   │
-│ + Validation         │
-└──────────┬───────────┘
-           │
-           ▼
-┌──────────────────────────────┐
-│ Destination-IP Sweep Line    │
-│ Candidate Pair Generation    │
-└──────────┬───────────────────┘
-           │ candidate pairs
-           ▼
-┌──────────────────────────────┐
-│ Prolog Symbolic Reasoner     │
-│ Shadow / Redundancy /        │
-│ Correlation / Generalization │
-└──────────┬───────────────────┘
-           │
-           ▼
-┌──────────────────────┐
-│ Findings / JSON / UI │
-└──────────────────────┘
+The architecture is intentionally kept as a **responsive Mermaid diagram** so GitHub renders it interactively across desktop and mobile screens.
+
+```mermaid
+flowchart TD
+    A[iptables-save / nftables configuration] --> B[Python Parser]
+    B --> C[Validated Rule Objects]
+    C --> D[Normalized Rule Facts]
+    D --> E[Destination-IP Sweep-Line]
+    E --> F[Candidate Rule Pairs]
+    F --> G[SWI-Prolog Reasoning Engine]
+    G --> H[Shadowing]
+    G --> I[Redundancy]
+    G --> J[Correlation]
+    G --> K[Generalization]
+    H --> L[Findings]
+    I --> L
+    J --> L
+    K --> L
+    L --> M[CLI / JSON / HTML Report]
 ```
 
 ### Design Principle
@@ -354,7 +362,7 @@ The repository therefore serves as a practical undergraduate research artifact d
 **Moein Hassanpour**  
 Computer Science Undergraduate
 
-Research interests: **Logic-Based AI · Symbolic AI · Explainable/Interpretable AI · Neuro-Symbolic AI · Data Analysis**
+Research interests: **Logic-Based AI · Symbolic AI · Explainable/Interpretable AI · Neuro-Symbolic AI · AI for Cybersecurity · Algorithms & Data Analysis**
 
 ---
 
