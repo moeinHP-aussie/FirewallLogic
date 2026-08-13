@@ -17,7 +17,6 @@
 
 - [Abstract](#abstract)
 - [Research Motivation](#research-motivation)
-- [Key Contributions](#key-contributions)
 - [System Architecture](#system-architecture)
 - [Sweep-Line Optimization](#sweep-line-optimization)
 - [Symbolic Anomaly Detection](#symbolic-anomaly-detection)
@@ -55,21 +54,6 @@ This project investigates a simple research question:
 > **Can algorithmic candidate filtering reduce the computational cost of symbolic firewall reasoning without changing the semantic detection rules?**
 
 The optimization is therefore deliberately placed **before** the reasoning layer rather than replacing the reasoning itself.
-
----
-
-## Key Contributions
-
-| Area | Contribution |
-|---|---|
-| **Logic-Based AI** | Firewall rules represented and evaluated through explicit symbolic predicates in Prolog |
-| **Interpretable AI** | Findings are derived from explicit rule relationships rather than opaque predictions |
-| **Algorithm Design** | Destination-IP **sweep-line candidate filtering** before symbolic analysis |
-| **Complexity** | Reduces unnecessary pair generation from naïve all-pairs comparison in typical sparse policies |
-| **Hybrid Architecture** | Python handles parsing/orchestration; Prolog handles logical reasoning |
-| **Analysis Coverage** | Shadowing, redundancy, correlation, and generalization |
-| **Reliability** | Dedicated regression configurations for anomaly types, chain isolation, IPv4/IPv6 isolation, and unsupported rules |
-| **Scalability** | Full-policy and incremental analysis modes |
 
 ---
 
