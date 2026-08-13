@@ -1,6 +1,6 @@
 # FirewallLogic
 
-### Automated Firewall Policy Auditing with Logic-Based AI, Symbolic Reasoning & Sweep-Line Optimization
+### Automated Firewall Policy Auditing with Symbolic Reasoning & Sweep-Line Optimization
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python&logoColor=white" alt="Python">
@@ -10,8 +10,6 @@
   <img src="https://img.shields.io/badge/Explainability-Interpretable-success" alt="Explainable AI">
   <img src="https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white" alt="Flask">
 </p>
-
-> **Research-oriented undergraduate project** exploring the intersection of **Logic-Based AI, Symbolic AI, Explainable/Interpretable AI, formal rule reasoning, and algorithmic optimization** for automated firewall policy analysis.
 
 ---
 
