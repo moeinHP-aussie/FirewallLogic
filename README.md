@@ -208,12 +208,8 @@ All source files are kept in the [`images/`](images) folder of this repository.
 
 This project reflects my broader interest in:
 
-- **Logic-Based AI**
-- **Symbolic AI**
-- **Explainable & Interpretable AI**
-- **Neuro-Symbolic AI**
+
 - **Formal Methods & Rule-Based Reasoning**
-- **AI for Cybersecurity**
 - **Algorithmic Optimization and Scalable Inference**
 
 FirewallLogic is particularly relevant to these interests because it combines **explicit symbolic knowledge, interpretable reasoning, and algorithmic optimization** in one end-to-end system.
