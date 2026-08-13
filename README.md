@@ -47,7 +47,7 @@ This separation keeps the logical semantics explicit while reducing unnecessary 
 
 ## Research Motivation
 
-Firewall policies are naturally represented as logical rules, making them a useful setting for studying **interpretable AI and logic-based reasoning**. However, naïve pairwise comparison becomes expensive as the policy grows.
+Firewall policies are naturally represented as logical rules, making them a useful setting for studying **logic-based reasoning**. However, naïve pairwise comparison becomes expensive as the policy grows.
 
 This project investigates a simple research question:
 
