@@ -26,7 +26,6 @@
 - [Research Interests & Academic Alignment](#research-interests--academic-alignment)
 - [Limitations](#limitations)
 - [Future Research Directions](#future-research-directions)
-- [Author](#author)
 
 ---
 
@@ -263,13 +262,6 @@ Interpretable Results
 
 The repository therefore serves as a practical undergraduate research artifact demonstrating experience with **symbolic AI, algorithm design, software architecture, experimentation, and explainable reasoning**.
 
----
 
-## Author
-
-**Moein Hassanpour**  
-Software Engineering Undergraduate
-
-Research interests: **Logic-Based AI · Symbolic AI · Explainable/Interpretable AI · Neuro-Symbolic AI · Data Analysis**
 
 
