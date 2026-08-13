@@ -22,17 +22,14 @@
 - [Key Contributions](#key-contributions)
 - [System Architecture](#system-architecture)
 - [Sweep-Line Optimization](#sweep-line-optimization)
-- [Experimental Result](#experimental-result)
 - [Symbolic Anomaly Detection](#symbolic-anomaly-detection)
 - [Supported Analysis Features](#supported-analysis-features)
 - [Repository Structure](#repository-structure)
-- [Quick Start](#quick-start)
 - [Screenshots & Experimental Outputs](#screenshots--experimental-outputs)
 - [Research Interests & Academic Alignment](#research-interests--academic-alignment)
 - [Limitations](#limitations)
 - [Future Research Directions](#future-research-directions)
 - [Author](#author)
-- [License](#license)
 
 ---
 
@@ -135,23 +132,6 @@ The optimization therefore targets realistic configurations where many rule pair
 
 ---
 
-## Experimental Result
-
-A benchmark included in the project demonstrates the practical effect of the optimization:
-
-| Rules | Original Pairwise Analysis | Sweep-Line Optimization | Speedup |
-|---:|---:|---:|---:|
-| 2,000 | ~13.8 s | ~0.45 s | **~30×** |
-| 8,000 | — | ~6 s | — |
-
-These are **measured project results**, obtained with the project's Prolog reasoning engine. The repository contains the corresponding benchmark evidence/output.
-
-The important observation is that the optimization does **not** replace symbolic reasoning; it reduces the number of rule pairs that reach it.
-
----
-
-## Symbolic Anomaly Detection
-
 FirewallLogic evaluates relationships between rules using explicit logical conditions.
 
 ### Shadowing
@@ -208,56 +188,10 @@ FirewallLogic/
 
 ---
 
-## Quick Start
-
 ### Requirements
 
 - Python 3.8+
 - SWI-Prolog 8.0+
-- Python dependencies in `requirements.txt`
-
-### Run the demo
-
-```bash
-python main.py --demo
-```
-
-### Analyze a configuration
-
-```bash
-python main.py path/to/firewall.rules
-```
-
-### JSON output
-
-```bash
-python main.py path/to/firewall.rules --format json
-```
-
-### Strict validation
-
-```bash
-python main.py path/to/firewall.rules --strict
-```
-
----
-
-## Validation & Testing
-
-The repository includes targeted configurations for:
-
-```text
-01_shadowing_only.rules
-02_redundancy_only.rules
-03_correlation_only.rules
-04_generalization_only.rules
-05_no_anomalies.rules
-06_chain_isolation.rules
-07_ipv4_ipv6_isolation.rules
-08_unsupported_lines.rules
-```
-
-This structure makes the detector behavior easier to reproduce and regression-test when the implementation changes.
 
 ---
 
