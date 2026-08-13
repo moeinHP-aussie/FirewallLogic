@@ -9,7 +9,6 @@
   <img src="https://img.shields.io/badge/Optimization-Sweep--Line-orange" alt="Sweep-Line Optimization">
   <img src="https://img.shields.io/badge/Explainability-Interpretable-success" alt="Explainable AI">
   <img src="https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white" alt="Flask">
-  <img src="https://img.shields.io/badge/License-MIT-2EA44F" alt="MIT License">
 </p>
 
 > **Research-oriented undergraduate project** exploring the intersection of **Logic-Based AI, Symbolic AI, Explainable/Interpretable AI, formal rule reasoning, and algorithmic optimization** for automated firewall policy analysis.
