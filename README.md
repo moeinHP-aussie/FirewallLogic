@@ -191,16 +191,18 @@ Because these relationships are explicitly represented, a finding can be traced 
 
 ```text
 FirewallLogic/
-├── parser.py                 # Firewall parsing & normalization
+├── ip_subnet.pl              # IP/subnet logic
 ├── firewall_engine.pl        # Prolog symbolic reasoning engine
+├── parser.py                 # Firewall parsing & normalization
 ├── bridge.py                 # Python ↔ Prolog bridge
 ├── incremental.py            # Incremental analysis
 ├── main.py                   # CLI entry point
 ├── webapp.py                 # Web interface
 ├── audit_log.py              # Audit logging
-├── ip_subnet.pl              # IP/subnet logic
-├── test_configs/             # Regression test cases
-├── demo_university_firewall.rules
+
+├── test_configs/             # test cases
+├── static/
+├── templates/
 ├── images/                   # Screenshots & benchmark outputs
 └── requirements.txt
 ```
@@ -262,33 +264,28 @@ This structure makes the detector behavior easier to reproduce and regression-te
 
 ## Screenshots & Experimental Outputs
 
-The visual evidence below is intentionally kept in the repository so the implementation can be evaluated together with its outputs.
+The following captures show the real web UI and report output of FirewallLogic.
+All source files are kept in the [`images/`](images) folder of this repository.
 
-### Web Interface
+### 1. Main Page (English)
 
-![Web Interface](images/web_interface.png)
+![Main Page – English](images/mainPage_EN.png)
 
-### Full Analysis Report
+### 2. Incremental "Check New Rules" Page (English)
 
-![Analysis Report](images/analysis_report.png)
+![Incremental Check Rule Page – English](images/incremental%20Check%20Rule%20Page_EN.png)
 
-### Detected Anomalies
+### 3. Main Page (Persian)
 
-![Detected Anomalies](images/anomalies.png)
+![Main Page – Persian](images/mainPage_FA.png)
 
-### Incremental Analysis
+### 4. Result Report – Test 2 (English)
 
-![Incremental Analysis](images/incremental.png)
+![Test 2 Result Report – English](images/Test2ResultReport_EN.gif)
 
-### CLI / JSON Output
+### 5. Result Report – Test 1 (Persian)
 
-![CLI Output](images/cli_output.png)
-
-### Performance Benchmark
-
-![Performance Benchmark](images/benchmark.png)
-
-> Replace the placeholder image files above with the actual screenshots generated from the project. Keeping the benchmark image is particularly valuable for a research-oriented portfolio.
+![Test 1 Result Report – Persian](images/Test1resultReport_FA.gif)
 
 ---
 
@@ -364,8 +361,4 @@ Software Engineering Undergraduate
 
 Research interests: **Logic-Based AI · Symbolic AI · Explainable/Interpretable AI · Neuro-Symbolic AI · Data Analysis**
 
----
 
-## License
-
-MIT License
