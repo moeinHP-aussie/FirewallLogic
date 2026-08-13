@@ -1,364 +1,290 @@
-# FirewallLogic
-
-### Automated Firewall Policy Auditing with Logic-Based AI, Symbolic Reasoning & Sweep-Line Optimization
+# FirewallLogic  
+## Automated Firewall Policy Auditing & Formal Verification Engine  
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/SWI--Prolog-8.0%2B-FF3E00?logo=prolog&logoColor=white" alt="SWI-Prolog">
-  <img src="https://img.shields.io/badge/Logic--Based%20AI-Symbolic-6A5ACD" alt="Logic-Based AI">
-  <img src="https://img.shields.io/badge/Optimization-Sweep--Line-orange" alt="Sweep-Line Optimization">
-  <img src="https://img.shields.io/badge/Explainability-Interpretable-success" alt="Explainable AI">
-  <img src="https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white" alt="Flask">
-  <img src="https://img.shields.io/badge/License-MIT-2EA44F" alt="MIT License">
+  <img src="https://img.shields.io/badge/Python-3.8%2B-blue?logo=python" alt="Python">
+  <img src="https://img.shields.io/badge/SWI--Prolog-8.0%2B-red?logo=swi-prolog" alt="SWI-Prolog">
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
 
-> **Research-oriented undergraduate project** exploring the intersection of **Logic-Based AI, Symbolic AI, Explainable/Interpretable AI, formal rule reasoning, and algorithmic optimization** for automated firewall policy analysis.
-
 ---
 
-## Table of Contents
-
-- [Abstract](#abstract)
-- [Research Motivation](#research-motivation)
-- [Key Contributions](#key-contributions)
-- [System Architecture](#system-architecture)
-- [Sweep-Line Optimization](#sweep-line-optimization)
-- [Experimental Result](#experimental-result)
-- [Symbolic Anomaly Detection](#symbolic-anomaly-detection)
-- [Supported Analysis Features](#supported-analysis-features)
-- [Repository Structure](#repository-structure)
-- [Quick Start](#quick-start)
-- [Screenshots & Experimental Outputs](#screenshots--experimental-outputs)
-- [Research Interests & Academic Alignment](#research-interests--academic-alignment)
-- [Limitations](#limitations)
-- [Future Research Directions](#future-research-directions)
-- [Author](#author)
-- [License](#license)
-
----
-
-## Abstract
-
-**FirewallLogic** is a hybrid Python–Prolog system for automatically auditing firewall policies and detecting four classes of rule anomalies:
-
-- **Shadowing**
-- **Redundancy**
-- **Correlation**
-- **Generalization**
-
-The core research idea is to combine **symbolic reasoning** with an algorithmic candidate-generation layer. Instead of sending every possible rule pair to the logic engine, FirewallLogic first applies a **destination-IP sweep-line algorithm** to identify potentially overlapping rule pairs. The surviving candidates are then evaluated using symbolic predicates in Prolog.
-
-This separation keeps the logical semantics explicit while reducing unnecessary pairwise reasoning.
-
----
-
-## Research Motivation
-
-Firewall policies are naturally represented as logical rules, making them a useful setting for studying **interpretable AI and logic-based reasoning**. However, naïve pairwise comparison becomes expensive as the policy grows.
-
-This project investigates a simple research question:
-
-> **Can algorithmic candidate filtering reduce the computational cost of symbolic firewall reasoning without changing the semantic detection rules?**
-
-The optimization is therefore deliberately placed **before** the reasoning layer rather than replacing the reasoning itself.
-
----
-
-## Key Contributions
-
-| Area | Contribution |
-|---|---|
-| **Logic-Based AI** | Firewall rules represented and evaluated through explicit symbolic predicates in Prolog |
-| **Interpretable AI** | Findings are derived from explicit rule relationships rather than opaque predictions |
-| **Algorithm Design** | Destination-IP **sweep-line candidate filtering** before symbolic analysis |
-| **Complexity** | Reduces unnecessary pair generation from naïve all-pairs comparison in typical sparse policies |
-| **Hybrid Architecture** | Python handles parsing/orchestration; Prolog handles logical reasoning |
-| **Analysis Coverage** | Shadowing, redundancy, correlation, and generalization |
-| **Reliability** | Dedicated regression configurations for anomaly types, chain isolation, IPv4/IPv6 isolation, and unsupported rules |
-| **Scalability** | Full-policy and incremental analysis modes |
-
----
-
-## System Architecture
-
-The architecture is intentionally kept as a **responsive Mermaid diagram** so GitHub renders it interactively across desktop and mobile screens.
-
-```mermaid
-flowchart TD
-    A[iptables-save / nftables configuration] --> B[Python Parser]
-    B --> C[Validated Rule Objects]
-    C --> D[Normalized Rule Facts]
-    D --> E[Destination-IP Sweep-Line]
-    E --> F[Candidate Rule Pairs]
-    F --> G[SWI-Prolog Reasoning Engine]
-    G --> H[Shadowing]
-    G --> I[Redundancy]
-    G --> J[Correlation]
-    G --> K[Generalization]
-    H --> L[Findings]
-    I --> L
-    J --> L
-    K --> L
-    L --> M[CLI / JSON / HTML Report]
-```
-
-### Design Principle
-
-The sweep-line stage is a **sound pre-filter**, not an anomaly detector. It removes pairs whose destination ranges cannot overlap; every surviving pair still goes through the original semantic checks.
-
----
-
-## Sweep-Line Optimization
-
-### Naïve approach
-
-For `N` rules, comparing every pair requires:
-
-```text
-N(N-1)/2 = O(N²)
-```
-
-### Implemented approach
-
-Destination ranges are converted to intervals, sorted by their start position, and processed using a sweep-line procedure to generate only potentially overlapping pairs.
-
-The resulting complexity is more accurately described as:
-
-```text
-Sorting:          O(N log N)
-Candidate pairs:  O(M)
-Overall:          O(N log N + M)
-```
-
-where `M` is the number of destination-overlapping candidate pairs. In dense configurations, `M` can approach `O(N²)`, so the **worst-case remains quadratic**.
-
-The optimization therefore targets realistic configurations where many rule pairs can be rejected before entering the more expensive symbolic reasoning stage.
-
----
-
-## Experimental Result
-
-A benchmark included in the project demonstrates the practical effect of the optimization:
-
-| Rules | Original Pairwise Analysis | Sweep-Line Optimization | Speedup |
-|---:|---:|---:|---:|
-| 2,000 | ~13.8 s | ~0.45 s | **~30×** |
-| 8,000 | — | ~6 s | — |
-
-These are **measured project results**, obtained with the project's Prolog reasoning engine. The repository contains the corresponding benchmark evidence/output.
-
-The important observation is that the optimization does **not** replace symbolic reasoning; it reduces the number of rule pairs that reach it.
-
----
-
-## Symbolic Anomaly Detection
-
-FirewallLogic evaluates relationships between rules using explicit logical conditions.
-
-### Shadowing
-A broader earlier rule makes a later rule unreachable.
-
-### Redundancy
-A rule is effectively covered by an earlier rule with equivalent behavior.
-
-### Correlation
-Two rules interact through overlapping conditions and actions in a potentially conflicting or significant way.
-
-### Generalization
-A later rule covers a broader space than an earlier related rule, exposing a policy-structure issue.
-
-Because these relationships are explicitly represented, a finding can be traced back to the rules and predicates that caused it.
-
----
-
-## Supported Analysis Features
-
-- `iptables-save` style firewall rules
-- `nftables`-oriented rule parsing
-- IPv4 / IPv6 handling
-- Chain isolation
-- Rule validation and unsupported-line handling
-- Full-policy audit
-- Incremental/new-rule analysis
-- JSON and text output
-- Web interface
-- Audit logging
-- Regression test configurations
-
----
-
-## Repository Structure
-
-```text
-FirewallLogic/
-├── ip_subnet.pl              # IP/subnet logic
-├── firewall_engine.pl        # Prolog symbolic reasoning engine
-├── parser.py                 # Firewall parsing & normalization
-├── bridge.py                 # Python ↔ Prolog bridge
-├── incremental.py            # Incremental analysis
-├── main.py                   # CLI entry point
-├── webapp.py                 # Web interface
-├── audit_log.py              # Audit logging
-
-├── test_configs/             # test cases
-├── static/
-├── templates/
-├── images/                   # Screenshots & benchmark outputs
-└── requirements.txt
-```
-
----
-
-## Quick Start
-
-### Requirements
-
-- Python 3.8+
-- SWI-Prolog 8.0+
-- Python dependencies in `requirements.txt`
-
-### Run the demo
+## 🚀 Quick Start
 
 ```bash
-python main.py --demo
+# 1. Install SWI-Prolog (system package, not pip-installable)
+#    Ubuntu/Debian: sudo apt install swi-prolog
+#    macOS:         brew install swi-prolog
+#    Windows:       https://www.swi-prolog.org/download/stable
+
+# 2. Set up Python environment
+python3 -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# 3a. Run the web UI
+python3 webapp.py                # then open http://127.0.0.1:5000/
+
+# 3b. ...or use the CLI instead
+python3 main.py --demo                       # built-in sample config
+python3 main.py demo_university_firewall.rules --format text
+python3 main.py your_config.rules --format json
 ```
 
-### Analyze a configuration
+---
 
-```bash
-python main.py path/to/firewall.rules
+## 📌 Overview
+
+Modern enterprise networks rely heavily on Next‑Generation Firewalls (NGFWs) to enforce security policies. However, as firewall configurations grow, manual rule management becomes increasingly difficult and error‑prone. Large‑scale policies often hide logical inconsistencies such as:
+
+- **Shadowed rules** – rules that never match  
+- **Redundant policies** – duplicate or unnecessary entries  
+- **Conflicting permissions** – overlapping rules with contradictory actions  
+- **Unreachable rules** – rules positioned after more general ones  
+- **Overlapping access conditions** – ambiguous decision paths  
+
+**FirewallLogic** is an automated static analysis framework that formally verifies firewall policies **without** interacting with live network traffic. It transforms configuration files into logical facts and applies symbolic reasoning techniques to prove policy correctness.
+
+---
+
+## 🎯 Research Motivation
+
+Firewall rule evaluation follows a **top‑down, first‑match, priority‑based** execution model. A single incorrect rule ordering can unintentionally:
+
+- Disable security policies  
+- Create unauthorised access paths  
+- Increase firewall processing overhead  
+
+This project bridges the gap between **cybersecurity**, **formal methods**, and **algorithmic optimisation** to provide a robust verification tool.
+
+---
+
+## 🏗️ System Architecture
+
+```
+     Firewall Configuration
+  (JSON / CSV / Vendor Export)
+              │
+              ▼
+     ┌─────────────────┐
+     │  Python Parser  │
+     └─────────────────┘
+              │
+              ▼
+     Firewall Facts
+   (Logical Predicates)
+              │
+              ▼
+     ┌─────────────────┐
+     │ SWI‑Prolog      │
+     │ Inference Engine│
+     └─────────────────┘
+              │
+              ▼
+   Anomaly Detection
+              │
+              ▼
+     Intelligent Report
 ```
 
-### JSON output
+---
 
-```bash
-python main.py path/to/firewall.rules --format json
+## 🧠 Core Technologies
+
+| Component            | Technology          |
+|----------------------|---------------------|
+| Policy Parser        | Python 3.8+         |
+| Reasoning Engine     | SWI‑Prolog 8.0+     |
+| Formal Rule Analysis | Logic Programming   |
+| Optimisation         | Sweep‑Line Algorithm|
+| Data Structures      | Interval Trees      |
+| Reporting            | Python (JSON/HTML)  |
+
+---
+
+## 🔍 Detected Firewall Anomalies
+
+### 1. Shadowing Detection  
+A rule becomes unreachable when an earlier rule completely covers its condition.
+
+**Example:**  
+```
+Rule 1: ALLOW  192.168.1.0/24   ANY
+Rule 2: DENY   192.168.1.10/32  SSH
+```
+→ Rule 2 will never execute.
+
+---
+
+### 2. Redundancy Detection  
+Detects duplicated or unnecessary policies.
+
+**Example:**  
+```
+ALLOW  10.0.0.0/8   HTTP
+ALLOW  10.0.0.0/8   HTTP   ← duplicate
 ```
 
-### Strict validation
+---
 
-```bash
-python main.py path/to/firewall.rules --strict
+### 3. Conflict Detection  
+Identifies overlapping rules with contradictory actions.
+
+**Example:**  
+```
+Rule 10: ALLOW   subnet_A   port 443
+Rule 11: DENY    subnet_A   port 443
 ```
 
 ---
 
-## Validation & Testing
+### 4. Generalisation Detection  
+Finds incorrectly ordered rules where specific policies appear after broader ones.
 
-The repository includes targeted configurations for:
+---
 
-```text
-01_shadowing_only.rules
-02_redundancy_only.rules
-03_correlation_only.rules
-04_generalization_only.rules
-05_no_anomalies.rules
-06_chain_isolation.rules
-07_ipv4_ipv6_isolation.rules
-08_unsupported_lines.rules
+## ⚡ Algorithm Optimisation
+
+### The Problem  
+Naive anomaly detection compares every rule against every other rule — **O(N²)** complexity. For **10,000** firewall rules, this means **100,000,000** comparisons, making large‑scale analysis impractical.
+
+### Proposed Optimisation  
+FirewallLogic introduces a preprocessing step based on the **Sweep‑Line Algorithm**, originally used in computational geometry for detecting overlapping intervals.
+
+Instead of comparing all rules, we extract only **possible overlapping candidates** using IP range indexing:
+
+```
+    IP Range Index
+         │
+         ▼
+ Candidate Rule Pairs
+         │
+         ▼
+ Formal Verification
 ```
 
-This structure makes the detector behavior easier to reproduce and regression-test when the implementation changes.
+**Complexity reduction:**  
+- Before: O(N²)  
+- After:  **O(N log N)**  
+
+The Prolog engine performs symbolic reasoning only on the candidate pairs that truly matter.
+
+### ⚠️ Known limitation: dual-stack (mixed IPv4/IPv6) configs
+
+The sweep-line pre-filter sorts every rule's destination range onto **one
+shared numeric axis**, regardless of address family (an IPv6 /128 range
+is a much larger integer than any IPv4 range, but both are just integers
+to the sweep). This is **not a correctness bug** — every detector still
+calls `same_family/2` before accepting a candidate pair, so an IPv4 rule
+can never be reported as shadowing/conflicting-with an IPv6 rule. It only
+means the pre-filter's speedup is reduced on heavily dual-stack configs:
+some IPv4-vs-IPv6 candidate pairs survive the sweep only to be rejected
+one step later inside the detector, instead of being filtered out at
+sweep time. The benchmark numbers above (`13.8s → 0.45s`) were measured
+on an IPv4-only config; a config that mixes both families heavily would
+see a smaller (but still positive) speedup. Splitting the sweep into two
+per-family passes would close this gap — not implemented in v1 pending
+confirmation this actually matters for a real config (see *Future Work*).
 
 ---
 
-## Screenshots & Experimental Outputs
+## 📊 Example Output
 
-The following captures show the real web UI and report output of FirewallLogic.
-All source files are kept in the [`images/`](images) folder of this repository.
-
-### 1. Main Page (English)
-
-![Main Page – English](images/mainPage_EN.png)
-
-### 2. Incremental "Check New Rules" Page (English)
-
-![Incremental Check Rule Page – English](images/incremental%20Check%20Rule%20Page_EN.png)
-
-### 3. Main Page (Persian)
-
-![Main Page – Persian](images/mainPage_FA.png)
-
-### 4. Result Report – Test 2 (English)
-
-![Test 2 Result Report – English](images/Test2ResultReport_EN.gif)
-
-### 5. Result Report – Test 1 (Persian)
-
-![Test 1 Result Report – Persian](images/Test1resultReport_FA.gif)
-
----
-
-## Research Interests & Academic Alignment
-
-This project reflects my broader interest in:
-
-- **Logic-Based AI**
-- **Symbolic AI**
-- **Explainable & Interpretable AI**
-- **Neuro-Symbolic AI**
-- **Formal Methods & Rule-Based Reasoning**
-- **AI for Cybersecurity**
-- **Algorithmic Optimization and Scalable Inference**
-
-FirewallLogic is particularly relevant to these interests because it combines **explicit symbolic knowledge, interpretable reasoning, and algorithmic optimization** in one end-to-end system.
-
-A natural future direction is to combine symbolic policy reasoning with learned models—for example, using machine learning to prioritize risky findings while retaining symbolic reasoning as the interpretable verification layer.
-
----
-
-## Limitations
-
-The current implementation has several known limitations:
-
-- The sweep-line optimization can still degrade to `O(N²)` for highly overlapping policies.
-- Destination-IP filtering is only one dimension of the firewall rule space.
-- Mixed IPv4/IPv6 configurations may generate some candidates that are later rejected by exact family checks.
-- The current reasoning engine is rule-based and does not yet learn from historical firewall configurations.
-
-These limitations define concrete directions for further experimentation rather than hidden assumptions.
-
----
-
-## Future Research Directions
-
-1. **Multi-dimensional candidate filtering** across IP, protocol, ports, and interfaces.
-2. **Better spatial indexing** for highly overlapping policies.
-3. **Explainable reasoning traces** showing exactly why a rule was classified as an anomaly.
-4. **Vendor-neutral intermediate representation** for broader firewall support.
-5. **ML-assisted risk prioritization** while preserving symbolic verification.
-6. **Neuro-symbolic extensions** combining learned representations with explicit policy logic.
-7. **Large-scale empirical evaluation** across synthetic and real-world firewall datasets.
-
----
-
-## Why This Repository Is Research-Relevant
-
-This project demonstrates more than implementation of a firewall tool. It shows an attempt to connect:
-
-```text
-Formal Rule Representation
-        ↓
-Logic-Based Reasoning
-        ↓
-Algorithmic Candidate Filtering
-        ↓
-Complexity Analysis
-        ↓
-Empirical Benchmarking
-        ↓
-Interpretable Results
+```json
+{
+  "rule": 15,
+  "type": "Shadowing",
+  "severity": "High",
+  "cause": "Covered by Rule 3",
+  "recommendation": "Reorder firewall policy – move Rule 15 before Rule 3"
+}
 ```
 
-The repository therefore serves as a practical undergraduate research artifact demonstrating experience with **symbolic AI, algorithm design, software architecture, experimentation, and explainable reasoning**.
+---
+
+## 🛠️ Operational Features (beyond the core detector)
+
+These were added on top of the tested Phase 1–4 detection pipeline
+without modifying `firewall_engine.pl`, `ip_subnet.pl`, `bridge.py`, or
+`parser.py` — they wrap the existing, already-verified engine rather
+than changing it.
+
+### Check new rules against an existing config (`/check-new`)
+For a config that's already been audited and trusted, upload it
+alongside a second file containing *only* the rules you're proposing
+to add. The tool re-numbers the new rules to avoid ID collisions, runs
+the same detector across the combined rule set, and shows only the
+findings that involve at least one new rule — old-vs-old findings you
+already reviewed are not re-surfaced. Useful for a quick "will this
+change break anything?" check before applying it, without re-reviewing
+an entire large ruleset every time.
+
+### Audit log (`audit_log.csv`)
+Every completed analysis (full or incremental) appends one row —
+timestamp, source filename(s), rule/finding counts by severity, which
+engine backend ran it — to `audit_log.csv` next to the app. Plain CSV,
+append-only, fail-open (a logging failure never blocks or corrupts an
+actual analysis). Not committed to git (see `.gitignore`).
+
+### Optional access control
+The web UI is open by default (matching the original zero-setup
+`python3 webapp.py` workflow). Setting the `FIREWALLLOGIC_PASSWORD`
+environment variable turns on HTTP Basic Auth for every route. This is
+a single shared password, not a real multi-user login system — see
+*Known Limitations* below for what a production multi-user deployment
+would still need.
+
+### 🔜 Planned, not yet built
+- **PDF / CSV report export** — download links on each report page.
+  Deferred for now; will be added once the on-screen report UI itself
+  is finalized.
+
+### ⚠️ Known limitations of the operational layer
+- **The audit log is process-local** — it's a plain file
+  (`audit_log.csv`) next to `webapp.py`, so it doesn't coordinate
+  across multiple separate worker processes (e.g. several `gunicorn`
+  workers) without extra work. Fine for the single-process deployment
+  this project ships with today.
+- **Basic Auth is a single shared password**, not per-user accounts,
+  roles, or audit-log attribution of *who* ran an analysis (the log
+  records *what* was analyzed and *when*, not *by whom*). Also note
+  Basic Auth credentials are base64-encoded, not encrypted — run this
+  behind HTTPS/a reverse proxy if it's ever exposed beyond
+  localhost/a trusted LAN.
 
 ---
 
-## Author
+## 🔬 Research Contribution
+
+This project explores the intersection of:
+
+- **Cybersecurity**  
+- **Formal Methods**  
+- **Logic Programming**  
+- **Computational Geometry**  
+- **Automated Reasoning**  
+
+The core idea is to combine **symbolic reasoning** with **algorithmic optimisation** for scalable security policy verification.
+
+---
+
+## 🚀 Future Work
+
+- Support for **Fortinet FortiGate**, **Cisco ASA**, and **Palo Alto** parsers  
+- **Machine Learning** based risk scoring  
+- Natural‑language explanation of policy violations  
+- **Neuro‑symbolic** policy reasoning  
+
+---
+
+## 👨‍💻 Author
 
 **Moein Hassanpour**  
-Software Engineering Undergraduate
+Computer Science Student  
+Research Interests: Neuro‑Symbolic AI, Cybersecurity, Formal Verification, Intelligent Systems
 
-Research interests: **Logic-Based AI · Symbolic AI · Explainable/Interpretable AI · Neuro-Symbolic AI · Data Analysis**
+---
 
+## 📜 License
 
+This project is licensed under the **MIT License** – see the [LICENSE](LICENSE) file for details.

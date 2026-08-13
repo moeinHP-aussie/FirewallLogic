@@ -54,8 +54,11 @@
     is_correlated/2,
     is_generalization/2,
     find_all_anomalies/1,
+    find_all_anomalies/2,
     find_all_anomalies_janus/1,
-    print_anomaly_report/0
+    find_all_anomalies_janus/2,
+    print_anomaly_report/0,
+    print_anomaly_report/1
 ]).
 
 :- use_module(ip_subnet).
@@ -598,6 +601,11 @@ severity(correlation,    high).
 severity(generalization, medium).
 severity(redundancy,     low).
 
+% severity_label(?Level, ?PersianLabel)
+% Kept for backward compatibility with any existing caller (e.g.
+% print_anomaly_report/0, which has always been Persian-only) that
+% does not pass a Lang argument. New code should prefer
+% severity_label(Level, Lang, Label) below.
 severity_label(critical, 'بحرانی').
 severity_label(high,     'شدید').
 severity_label(medium,   'متوسط').
@@ -608,28 +616,75 @@ type_label(redundancy,     'افزونگی').
 type_label(correlation,    'تداخل / تعارض').
 type_label(generalization, 'تعمیم').
 
-% rule_summary(+ID, -Summary)
+% ----------------------------------------------------------------------------
+% 4a. Bilingual reporting (fa / en)
+% ----------------------------------------------------------------------------
+% WHY A SEPARATE Lang PARAMETER, NOT A SEPARATE FILE PER LANGUAGE:
+% Every finding's Explanation is generated here because this is the
+% only part of the system that actually knows WHY two rules conflict
+% (see the design note above finding_to_list/2). Duplicating
+% firewall_engine.pl per language would mean the reasoning itself
+% (candidate_pair/2, covers/2, is_shadowed/2, etc.) gets copy-pasted
+% too, or the two files drift out of sync over time. Instead, the
+% detection logic stays completely language-agnostic (it already was
+% -- Type/Severity/PrimaryID/SecondaryID are all Prolog atoms/integers,
+% never natural-language strings) and ONLY the Explanation-rendering
+% step at the bottom of the pipeline branches on Lang. This is the
+% same "reasoning vs. presentation" split the file already documents
+% for Python vs. Prolog, applied one level deeper: within Prolog,
+% between deriving a finding and describing it in words.
+%
+% Lang is one of the atoms `fa` or `en`. Any caller that doesn't care
+% about language keeps using the existing /1 forms (find_all_anomalies/1,
+% find_all_anomalies_janus/1, print_anomaly_report/0), which are now
+% thin wrappers that default to `fa` -- so nothing already depending on
+% Persian-only output breaks.
+
+severity_label(critical, fa, 'بحرانی').
+severity_label(high,     fa, 'شدید').
+severity_label(medium,   fa, 'متوسط').
+severity_label(low,      fa, 'کم').
+severity_label(critical, en, 'Critical').
+severity_label(high,     en, 'High').
+severity_label(medium,   en, 'Medium').
+severity_label(low,      en, 'Low').
+
+type_label(shadowing,      fa, 'سایه‌خوردگی').
+type_label(redundancy,     fa, 'افزونگی').
+type_label(correlation,    fa, 'تداخل / تعارض').
+type_label(generalization, fa, 'تعمیم').
+type_label(shadowing,      en, 'Shadowing').
+type_label(redundancy,     en, 'Redundancy').
+type_label(correlation,    en, 'Correlation').
+type_label(generalization, en, 'Generalization').
+
+% rule_summary(+ID, +Lang, -Summary)
 % Renders one rule's full traffic selector as a compact, human-
-% readable Persian string, while preserving directly comparable technical data.
-% Used inside every Explanation string below so a network engineer
-% can check a finding against the raw config without having to look
-% up each rule ID separately first.
+% readable string in Lang (fa or en), while preserving directly
+% comparable technical data. Used inside every Explanation string
+% below so a network engineer can check a finding against the raw
+% config without having to look up each rule ID separately first.
 %
 % IDs, priorities, IPs, ports, protocol names, and action names are
 % deliberately kept as plain (Western Arabic) digits and English
-% tokens: these values must be directly comparable/copy-pasteable
-% against the raw config and against Phase 3/4 tooling, so they are
-% NOT transliterated into Persian digits. Only the surrounding
-% narrative text (in the Explanation strings below) is in Persian.
-rule_summary(ID, Summary) :-
+% tokens in BOTH languages: these values must be directly
+% comparable/copy-pasteable against the raw config and against
+% Phase 3/4 tooling, so they are NOT transliterated into Persian
+% digits or translated. Only the leading "rule (priority ...)" label
+% differs by language -- everything after it is language-neutral.
+rule_summary(ID, Lang, Summary) :-
     rule(ID, Priority, Action, Protocol, SrcIP, DstIP, SrcPort, DstPort),
     ip_term_string(SrcIP, SrcStr),
     ip_term_string(DstIP, DstStr),
     port_term_string(SrcPort, SrcPortStr),
     port_term_string(DstPort, DstPortStr),
+    rule_summary_template(Lang, Template),
     format(atom(Summary),
-           "قانون ~w (اولویت ~w): ~w  ~w:~w -> ~w:~w  [~w]",
+           Template,
            [ID, Priority, Protocol, SrcStr, SrcPortStr, DstStr, DstPortStr, Action]).
+
+rule_summary_template(fa, "قانون ~w (اولویت ~w): ~w  ~w:~w -> ~w:~w  [~w]").
+rule_summary_template(en, "Rule ~w (priority ~w): ~w  ~w:~w -> ~w:~w  [~w]").
 
 ip_term_string(ip4(A,B,C,D,Prefix), Str) :-
     !, format(atom(Str), "~w.~w.~w.~w/~w", [A,B,C,D,Prefix]).
@@ -668,12 +723,22 @@ port_term_string(port_range(Lo,Hi), Str) :- !, format(atom(Str), "~w-~w", [Lo,Hi
 % same rule/8 facts. The sweep is O(N log N), so this didn't change the
 % asymptotic complexity, but it was a 4x constant-factor cost on exactly
 % the part of the pipeline this whole optimization exists to speed up.
+% find_all_anomalies(-Report)
+% Backward-compatible wrapper: any existing caller that never knew
+% about languages keeps getting exactly the original Persian output.
 find_all_anomalies(Report) :-
+    find_all_anomalies(fa, Report).
+
+% find_all_anomalies(+Lang, -Report)
+% Same as above, but every finding's Explanation (and the rule
+% summaries embedded in it) is rendered in Lang (fa or en) instead of
+% being hardcoded to Persian.
+find_all_anomalies(Lang, Report) :-
     findall(A-B, candidate_pair(A, B), Pairs),
-    findall(F, shadowing_finding(Pairs, F), ShadowingFindings),
-    findall(F, redundancy_finding(Pairs, F), RedundancyFindings),
-    findall(F, correlation_finding(Pairs, F), CorrelationFindings),
-    findall(F, generalization_finding(Pairs, F), GeneralizationFindings),
+    findall(F, shadowing_finding(Pairs, Lang, F), ShadowingFindings),
+    findall(F, redundancy_finding(Pairs, Lang, F), RedundancyFindings),
+    findall(F, correlation_finding(Pairs, Lang, F), CorrelationFindings),
+    findall(F, generalization_finding(Pairs, Lang, F), GeneralizationFindings),
     append([ShadowingFindings, RedundancyFindings,
             CorrelationFindings, GeneralizationFindings], Report).
 
@@ -720,17 +785,25 @@ find_all_anomalies(Report) :-
 % text (see print format in _build_prolog_script in bridge.py), so
 % finding/5's structure never has to cross a typed FFI boundary there.
 find_all_anomalies_janus(ListOfLists) :-
-    find_all_anomalies(Report),
+    find_all_anomalies_janus(fa, ListOfLists).
+
+% find_all_anomalies_janus(+Lang, -ListOfLists)
+% Language-aware version of the flattening wrapper above.
+find_all_anomalies_janus(Lang, ListOfLists) :-
+    find_all_anomalies(Lang, Report),
     maplist(finding_to_list, Report, ListOfLists).
 
 finding_to_list(finding(Type, Severity, PrimaryID, SecondaryID, Explanation),
                 [Type, Severity, PrimaryID, SecondaryID, Explanation]).
 
-shadowing_finding(Pairs, finding(shadowing, Severity, ShadowingID, ShadowedID, Explanation)) :-
+shadowing_finding(Pairs, Lang, finding(shadowing, Severity, ShadowingID, ShadowedID, Explanation)) :-
     is_shadowed(Pairs, ShadowedID, ShadowingID),
     severity(shadowing, Severity),
-    rule_summary(ShadowingID, ShadowingSummary),
-    rule_summary(ShadowedID, ShadowedSummary),
+    rule_summary(ShadowingID, Lang, ShadowingSummary),
+    rule_summary(ShadowedID, Lang, ShadowedSummary),
+    shadowing_explanation(Lang, ShadowedID, ShadowingID, ShadowingSummary, ShadowedSummary, Explanation).
+
+shadowing_explanation(fa, ShadowedID, ShadowingID, ShadowingSummary, ShadowedSummary, Explanation) :-
     format(atom(Explanation),
            "قانون ~w هرگز اجرا نمی‌شود. قانون ~w زودتر ارزیابی می‌شود، \c
             تمام بسته‌های قانون ~w را پوشش می‌دهد و عملکرد متضاد دارد؛ \c
@@ -740,12 +813,25 @@ shadowing_finding(Pairs, finding(shadowing, Severity, ShadowingID, ShadowedID, E
             قانون سایه‌خورده (غیرقابل‌دسترسی) -- ~w",
            [ShadowedID, ShadowingID, ShadowingID, ShadowedID, ShadowingID,
             ShadowingSummary, ShadowedSummary]).
+shadowing_explanation(en, ShadowedID, ShadowingID, ShadowingSummary, ShadowedSummary, Explanation) :-
+    format(atom(Explanation),
+           "Rule ~w is never executed. Rule ~w is evaluated earlier, \c
+            covers every packet matched by rule ~w, and has a conflicting \c
+            action; therefore all traffic intended for rule ~w is fully \c
+            decided by rule ~w instead.~n    \c
+            Shadowing rule (active) -- ~w~n    \c
+            Shadowed rule (unreachable) -- ~w",
+           [ShadowedID, ShadowingID, ShadowingID, ShadowedID, ShadowingID,
+            ShadowingSummary, ShadowedSummary]).
 
-redundancy_finding(Pairs, finding(redundancy, Severity, CauseID, RedundantID, Explanation)) :-
+redundancy_finding(Pairs, Lang, finding(redundancy, Severity, CauseID, RedundantID, Explanation)) :-
     is_redundant(Pairs, RedundantID, CauseID),
     severity(redundancy, Severity),
-    rule_summary(CauseID, CauseSummary),
-    rule_summary(RedundantID, RedundantSummary),
+    rule_summary(CauseID, Lang, CauseSummary),
+    rule_summary(RedundantID, Lang, RedundantSummary),
+    redundancy_explanation(Lang, CauseID, RedundantID, CauseSummary, RedundantSummary, Explanation).
+
+redundancy_explanation(fa, CauseID, RedundantID, CauseSummary, RedundantSummary, Explanation) :-
     format(atom(Explanation),
            "قانون ~w افزونه است. قانون ~w زودتر ارزیابی می‌شود، همان عملکرد \c
             را دارد و تمام بسته‌های قانون ~w را پوشش می‌دهد؛ بنابراین قانون \c
@@ -754,12 +840,25 @@ redundancy_finding(Pairs, finding(redundancy, Severity, CauseID, RedundantID, Ex
             قانون افزونه -- ~w",
            [RedundantID, CauseID, RedundantID, RedundantID,
             CauseSummary, RedundantSummary]).
+redundancy_explanation(en, CauseID, RedundantID, CauseSummary, RedundantSummary, Explanation) :-
+    format(atom(Explanation),
+           "Rule ~w is redundant. Rule ~w is evaluated earlier, has the \c
+            same action, and covers every packet matched by rule ~w; \c
+            therefore rule ~w never changes the decision and only adds \c
+            unnecessary processing.~n    \c
+            Covering rule -- ~w~n    \c
+            Redundant rule -- ~w",
+           [RedundantID, CauseID, RedundantID, RedundantID,
+            CauseSummary, RedundantSummary]).
 
-correlation_finding(Pairs, finding(correlation, Severity, ID1, ID2, Explanation)) :-
+correlation_finding(Pairs, Lang, finding(correlation, Severity, ID1, ID2, Explanation)) :-
     is_correlated(Pairs, ID1, ID2),
     severity(correlation, Severity),
-    rule_summary(ID1, Summary1),
-    rule_summary(ID2, Summary2),
+    rule_summary(ID1, Lang, Summary1),
+    rule_summary(ID2, Lang, Summary2),
+    correlation_explanation(Lang, ID1, ID2, Summary1, Summary2, Explanation).
+
+correlation_explanation(fa, ID1, ID2, Summary1, Summary2, Explanation) :-
     format(atom(Explanation),
            "قوانین ~w و ~w ترافیک هم‌پوشان و عملکرد متضاد دارند، اما هیچ‌کدام \c
             دیگری را کامل پوشش نمی‌دهد. نتیجهٔ ترافیک مشترک به ترتیب قوانین \c
@@ -768,12 +867,24 @@ correlation_finding(Pairs, finding(correlation, Severity, ID1, ID2, Explanation)
             قانون ~w -- ~w~n    \c
             قانون ~w -- ~w",
            [ID1, ID2, ID1, Summary1, ID2, Summary2]).
+correlation_explanation(en, ID1, ID2, Summary1, Summary2, Explanation) :-
+    format(atom(Explanation),
+           "Rules ~w and ~w have overlapping traffic and conflicting \c
+            actions, but neither fully covers the other. The outcome for \c
+            the shared traffic depends on rule order, and swapping them \c
+            could change behavior; manual review is recommended.~n    \c
+            Rule ~w -- ~w~n    \c
+            Rule ~w -- ~w",
+           [ID1, ID2, ID1, Summary1, ID2, Summary2]).
 
-generalization_finding(Pairs, finding(generalization, Severity, SpecificID, GeneralID, Explanation)) :-
+generalization_finding(Pairs, Lang, finding(generalization, Severity, SpecificID, GeneralID, Explanation)) :-
     is_generalization(Pairs, SpecificID, GeneralID),
     severity(generalization, Severity),
-    rule_summary(SpecificID, SpecificSummary),
-    rule_summary(GeneralID, GeneralSummary),
+    rule_summary(SpecificID, Lang, SpecificSummary),
+    rule_summary(GeneralID, Lang, GeneralSummary),
+    generalization_explanation(Lang, SpecificID, GeneralID, SpecificSummary, GeneralSummary, Explanation).
+
+generalization_explanation(fa, SpecificID, GeneralID, SpecificSummary, GeneralSummary, Explanation) :-
     format(atom(Explanation),
            "قانون خاص ~w پیش از قانون کلی‌تر ~w با عملکرد متفاوت ارزیابی می‌شود. \c
             این حالت می‌تواند عمدی باشد، مثلاً برای مسدودکردن یک استثنا و \c
@@ -782,6 +893,16 @@ generalization_finding(Pairs, finding(generalization, Severity, SpecificID, Gene
             قانون خاص -- ~w~n    \c
             قانون کلی -- ~w",
            [SpecificID, GeneralID, SpecificSummary, GeneralSummary]).
+generalization_explanation(en, SpecificID, GeneralID, SpecificSummary, GeneralSummary, Explanation) :-
+    format(atom(Explanation),
+           "The specific rule ~w is evaluated before the more general \c
+            rule ~w with a different action. This can be intentional --\c
+            e.g. blocking one exception while allowing the rest of a \c
+            subnet -- but is flagged because it depends fragilely on \c
+            rule order; swapping them could change policy behavior.~n    \c
+            Specific rule -- ~w~n    \c
+            General rule -- ~w",
+           [SpecificID, GeneralID, SpecificSummary, GeneralSummary]).
 
 % print_anomaly_report/0
 % Human-readable Persian console report, useful for manual
@@ -789,23 +910,42 @@ generalization_finding(Pairs, finding(generalization, Severity, SpecificID, Gene
 % Phase 3/4 tooling. Groups findings by severity (critical first)
 % since that is the order a reviewer should actually address them in.
 %
+% print_anomaly_report/0
+% Backward-compatible wrapper: defaults to the original Persian
+% console report.
 print_anomaly_report :-
-    find_all_anomalies(Report),
+    print_anomaly_report(fa).
+
+% print_anomaly_report(+Lang)
+% Human-readable console report in Lang (fa or en), useful for manual
+% testing and for a network engineer to review directly without any
+% Phase 3/4 tooling. Groups findings by severity (critical first)
+% since that is the order a reviewer should actually address them in.
+print_anomaly_report(Lang) :-
+    find_all_anomalies(Lang, Report),
     length(Report, N),
-    format("~n=== گزارش آنومالی‌های فایروال: ~w یافته ===~n", [N]),
+    report_header_template(Lang, HeaderTemplate),
+    format(HeaderTemplate, [N]),
     forall(
         member(Severity, [critical, high, medium, low]),
-        print_severity_group(Severity, Report)
+        print_severity_group(Severity, Lang, Report)
     ).
 
-print_severity_group(Severity, Report) :-
+report_header_template(fa, "~n=== گزارش آنومالی‌های فایروال: ~w یافته ===~n").
+report_header_template(en, "~n=== Firewall Anomaly Report: ~w finding(s) ===~n").
+
+print_severity_group(Severity, Lang, Report) :-
     findall(F, (member(F, Report), F = finding(_,Severity,_,_,_)), Group),
     Group \== [],
     !,
-    severity_label(Severity, SeverityLabel),
+    severity_label(Severity, Lang, SeverityLabel),
     length(Group, GroupN),
-    format("~n--- ~w (~w مورد) ---~n", [SeverityLabel, GroupN]),
+    severity_group_template(Lang, GroupTemplate),
+    format(GroupTemplate, [SeverityLabel, GroupN]),
     forall(member(finding(Type,_,_,_,Explanation), Group),
-           ( type_label(Type, TypeLabel),
+           ( type_label(Type, Lang, TypeLabel),
              format("~n[~w]~n~w~n", [TypeLabel, Explanation]) )).
-print_severity_group(_, _).  % no findings at this severity -- print nothing
+print_severity_group(_, _, _).  % no findings at this severity -- print nothing
+
+severity_group_template(fa, "~n--- ~w (~w مورد) ---~n").
+severity_group_template(en, "~n--- ~w (~w item(s)) ---~n").

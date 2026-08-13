@@ -41,15 +41,19 @@ file asserted into user: explicitly for exactly that reason.
 pyswip's Prolog.query()/assertz()/retractall() calls, run from Python,
 execute in the `user` module by default -- the SAME module
 firewall_engine.pl's declaration targets. So the plain, unqualified
-`rule(...)` calls used below (no `user:` prefix) should already land
-in the correct predicate. This has NOT been exercised against a live
-SWI-Prolog + pyswip install in this environment (no network access to
-install pyswip, no local swipl binary -- see the standalone test
-block at the bottom of this file and run it yourself once pyswip is
-installed). If querying ever DOES appear to silently see zero rules
-despite successful assertz() calls, that mismatch -- a pyswip query
-running in some module other than `user` -- is the first thing to
-check; the fix would be reintroducing an explicit `user:` prefix on
+`rule(...)` calls used below (no `user:` prefix) already land in the
+correct predicate.
+
+VERIFIED (previously an open question -- see git history for the old
+"has NOT been exercised" wording): this WAS exercised against a real
+SWI-Prolog 9.0.4 + pyswip 0.3.3 install, including a full run against
+demo_university_firewall.rules (27 rules, 5 findings) via both
+run_engine() directly and the /analyze Flask endpoint. Results matched
+the subprocess backend exactly. If querying ever DOES appear to
+silently see zero rules despite successful assertz() calls on some
+other machine/version combination, that mismatch -- a pyswip query
+running in some module other than `user` -- is still the first thing
+to check; the fix would be reintroducing an explicit `user:` prefix on
 every query/assertz/retractall call in _run_via_pyswip below, mirroring
 the janus version.
 
@@ -185,10 +189,17 @@ class Finding:
 def run_engine(
     rules: list[Rule],
     timeout_seconds: int = 120,
+    lang: str = "fa",
 ) -> tuple[list[Finding], Optional[str]]:
     """
     Assert *rules* into the Prolog engine, run the anomaly detector,
     and return (findings, error_string). error_string is None on success.
+
+    lang: "fa" (default, unchanged historical behavior) or "en".
+    Controls the language of every Explanation string produced by the
+    Prolog engine (see firewall_engine.pl §4a) AND of the chain-label
+    prefix added below, which is the one piece of report text that has
+    always lived in Python rather than Prolog.
 
     Backend selection policy (pyswip-first, always-retry):
       1. If pyswip couldn't even be imported (or its underlying
@@ -228,13 +239,15 @@ def run_engine(
     for rule in rules:
         rules_by_chain.setdefault(rule.chain, []).append(rule)
 
+    chain_label = "زنجیره" if lang == "fa" else "Chain"
+
     all_findings: list[Finding] = []
     for chain, chain_rules in rules_by_chain.items():
-        findings, error = _run_single_chain(chain_rules, timeout_seconds)
+        findings, error = _run_single_chain(chain_rules, timeout_seconds, lang)
         if error is not None:
             return [], f"chain {chain!r}: {error}"
         for finding in findings:
-            finding.explanation = f"زنجیره {chain}:\n{finding.explanation}"
+            finding.explanation = f"{chain_label} {chain}:\n{finding.explanation}"
         all_findings.extend(findings)
 
     all_findings.sort(key=lambda f: f.severity_rank())
@@ -242,20 +255,20 @@ def run_engine(
 
 
 def _run_single_chain(
-    rules: list[Rule], timeout_seconds: int
+    rules: list[Rule], timeout_seconds: int, lang: str = "fa"
 ) -> tuple[list[Finding], Optional[str]]:
     """Run the existing Prolog rule/8 detector for one firewall chain."""
     global _last_backend_used
 
     if _PYSWIP_IMPORTABLE:
-        findings, error = _run_via_pyswip(rules)
+        findings, error = _run_via_pyswip(rules, lang)
         if error is None:
             _last_backend_used = "pyswip"
             return findings, None
         print(f"[bridge] pyswip backend failed ({error}) — falling back to subprocess for this call")
 
     _last_backend_used = "subprocess"
-    return _run_via_subprocess(rules, timeout_seconds)
+    return _run_via_subprocess(rules, timeout_seconds, lang=lang)
 
 
 def backend_name() -> str:
@@ -273,7 +286,7 @@ def backend_name() -> str:
 # 3.  pyswip backend  (fast, in-process, embedded SWI-Prolog engine)
 # ══════════════════════════════════════════════════════════════════
 
-def _run_via_pyswip(rules: list[Rule]) -> tuple[list[Finding], Optional[str]]:
+def _run_via_pyswip(rules: list[Rule], lang: str = "fa") -> tuple[list[Finding], Optional[str]]:
     """
     Steps:
       1. Load ip_subnet.pl and firewall_engine.pl into the embedded
@@ -287,9 +300,10 @@ def _run_via_pyswip(rules: list[Rule]) -> tuple[list[Finding], Optional[str]]:
          an earlier config file would silently leak into the next
          run's report.
       3. Assert every rule/8 fact from the current config.
-      4. Query find_all_anomalies_janus/1 (see this module's docstring
-         for why that name is kept) and read back a Python list of
-         5-element lists.
+      4. Query find_all_anomalies_janus/2 with the requested lang (see
+         this module's docstring for why the "_janus" name is kept
+         regardless of backend) and read back a Python list of
+         5-element lists, already rendered in that language.
       5. Convert each 5-element list to a Finding dataclass.
 
     pyswip's query API: Prolog.query(goal_string) returns a GENERATOR
@@ -310,13 +324,15 @@ def _run_via_pyswip(rules: list[Rule]) -> tuple[list[Finding], Optional[str]]:
       Prolog list              → Python list
       Prolog finding(...)   → would come back as a pyswip Term/Functor
                                  object, NOT a plain Python value -- this
-                                 is exactly why find_all_anomalies_janus/1
-                                 is used instead of find_all_anomalies/1:
+                                 is exactly why find_all_anomalies_janus/2
+                                 is used instead of find_all_anomalies/2:
                                  it flattens each finding/5 into a plain
                                  5-element Prolog list on the Prolog side,
                                  which pyswip DOES convert natively, so
                                  no Functor/Term unpacking is needed here.
     """
+    if lang not in ("fa", "en"):
+        lang = "fa"
     try:
         prolog = _get_prolog()
 
@@ -349,12 +365,12 @@ def _run_via_pyswip(rules: list[Rule]) -> tuple[list[Finding], Optional[str]]:
             prolog.assertz(fact_str)
 
         # ── run engine ────────────────────────────────────────────
-        # find_all_anomalies_janus(-ListOfLists) is deterministic --
-        # it collects everything into one list and succeeds exactly
+        # find_all_anomalies_janus(+Lang, -ListOfLists) is deterministic
+        # -- it collects everything into one list and succeeds exactly
         # once, so we only ever consume the first (only) solution.
-        solutions = list(prolog.query("find_all_anomalies_janus(Findings)"))
+        solutions = list(prolog.query(f"find_all_anomalies_janus({lang}, Findings)"))
         if not solutions:
-            return [], "find_all_anomalies_janus/1 failed unexpectedly"
+            return [], "find_all_anomalies_janus/2 failed unexpectedly"
 
         findings = _pyswip_list_to_findings(solutions[0]["Findings"])
         findings.sort(key=lambda f: f.severity_rank())
@@ -402,8 +418,10 @@ def _pyswip_list_to_findings(list_of_lists) -> list[Finding]:
 # 4.  Subprocess backend  (fallback, ~300 ms startup overhead)
 # ══════════════════════════════════════════════════════════════════
 
-def _build_prolog_script(rules: list[Rule]) -> str:
+def _build_prolog_script(rules: list[Rule], lang: str = "fa") -> str:
     """Builds a self-contained Prolog script for the subprocess path."""
+    if lang not in ("fa", "en"):
+        lang = "fa"
     fact_lines = "\n".join(r.to_prolog_fact() for r in rules)
     # SWI-Prolog treats backslashes in quoted atoms as escapes.  Windows paths
     # therefore need POSIX separators before they are embedded in the script.
@@ -421,7 +439,7 @@ def _build_prolog_script(rules: list[Rule]) -> str:
 :- initialization(main, main).
 
 main :-
-    find_all_anomalies(Findings),
+    find_all_anomalies({lang}, Findings),
     forall(
         member(finding(Type, Severity, PrimaryID, SecondaryID, Explanation), Findings),
         format("FINDING|~w|~w|~w|~w|~w~n",
@@ -435,9 +453,10 @@ def _run_via_subprocess(
     rules: list[Rule],
     timeout_seconds: int,
     swipl_path: str = "swipl",
+    lang: str = "fa",
 ) -> tuple[list[Finding], Optional[str]]:
     """Subprocess fallback — writes a temp Prolog script and runs swipl."""
-    script = _build_prolog_script(rules)
+    script = _build_prolog_script(rules, lang)
 
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".pl", delete=False, encoding="utf-8"

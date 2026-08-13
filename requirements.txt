@@ -1,0 +1,22 @@
+# FirewallLogic — Python dependencies
+#
+# System requirement (not pip-installable): SWI-Prolog must be installed
+# and on PATH (the `swipl` binary). Get it from https://www.swi-prolog.org/
+# or:
+#   Ubuntu/Debian:  sudo apt install swi-prolog
+#   macOS:           brew install swi-prolog
+#   Windows:         installer from swi-prolog.org
+#
+# Without SWI-Prolog installed, bridge.py cannot run at all (neither the
+# pyswip nor the subprocess backend works without a real SWI-Prolog on
+# the machine).
+
+flask>=3.0,<4.0
+
+# pyswip is the primary Python-Prolog bridge backend (bridge.py falls
+# back to invoking `swipl` as a subprocess if pyswip is missing or its
+# import fails). It requires SWI-Prolog's shared library to be
+# discoverable on the system — see the system requirement note above.
+# The app still runs without it (subprocess fallback), so this line can
+# be commented out on machines where installing pyswip is inconvenient.
+pyswip>=0.3.2
