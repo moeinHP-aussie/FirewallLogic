@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="{{ html_lang }}" dir="{{ dir }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page_title_check_new }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="shell">
+    <form class="lang-switch" method="get" action="{{ url_for('check_new_form') }}">
+      <label for="lang-select">{{ lang_switch_label }}</label>
+      <select id="lang-select" name="lang" onchange="this.form.submit()">
+        <option value="fa" {% if lang == 'fa' %}selected{% endif %}>{{ lang_name_fa }}</option>
+        <option value="en" {% if lang == 'en' %}selected{% endif %}>{{ lang_name_en }}</option>
+      </select>
+    </form>
+
+    <a class="back-link" href="{{ url_for('index') }}?lang={{ lang }}">{{ back_to_full_analysis }}</a>
+
+    <header class="masthead">
+      <p class="eyebrow">{{ incremental_eyebrow }}</p>
+      <h1>{{ check_new_h1 }}</h1>
+      <p class="lead">{{ check_new_lead }}</p>
+    </header>
+
+    <section class="upload-panel" aria-labelledby="upload-title">
+      <h2 id="upload-title">{{ check_new_upload_title }}</h2>
+      {% if error %}<p class="message error" role="alert">{{ error }}</p>{% endif %}
+      <form method="post" action="{{ url_for('check_new') }}?lang={{ lang }}" enctype="multipart/form-data" id="check-new-form">
+        <input type="hidden" name="lang" value="{{ lang }}">
+        <label class="file-input" for="base_config">
+          <span>{{ base_config_field_label }}</span>
+          <input id="base_config" name="base_config" type="file" accept=".conf,.rules,.txt" required>
+        </label>
+        <label class="file-input" for="new_rules">
+          <span>{{ new_rules_field_label }}</span>
+          <input id="new_rules" name="new_rules" type="file" accept=".conf,.rules,.txt" required>
+        </label>
+        <button type="submit" id="submit-button">{{ submit_check_new_button }}</button>
+        <p class="form-note">
+          {{ check_new_form_note }}<br>
+          {{ check_new_form_note2 }}
+        </p>
+      </form>
+    </section>
+
+    <section class="scope" aria-labelledby="scope-title">
+      <h2 id="scope-title">{{ check_new_scope_title }}</h2>
+      <p>{{ check_new_scope_body }}</p>
+    </section>
+  </main>
+  <script>
+    document.getElementById('check-new-form').addEventListener('submit', () => {
+      const button = document.getElementById('submit-button');
+      button.disabled = true;
+      button.textContent = {{ checking_label|tojson }};
+    });
+  </script>
+</body>
+</html>

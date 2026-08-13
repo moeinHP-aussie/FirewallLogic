@@ -1,0 +1,546 @@
+# Demo firewall policy for Phase 4
+# This is a fictional university network policy.  It intentionally contains
+# several policy anomalies so that the reporting screen has useful output.
+
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+
+# INPUT: campus services
+-A INPUT -s 10.10.0.0/16 -d 192.168.50.10 -p tcp --dport 22 -j ACCEPT
+-A INPUT -s 10.10.25.0/24 -d 192.168.50.10 -p tcp --dport 22 -j DROP
+-A INPUT -s 10.11.0.0/16 -d 192.168.50.53 -p udp --dport 53 -j ACCEPT
+-A INPUT -s 10.11.0.0/16 -d 192.168.50.53 -p udp --dport 53 -j ACCEPT
+-A INPUT -s 10.12.1.0/24 -d 192.168.50.20 -p tcp --dport 443 -j ACCEPT
+-A INPUT -s 10.12.2.0/24 -d 192.168.50.20 -p tcp --dport 443 -j ACCEPT
+-A INPUT -s 10.13.0.0/16 -d 192.168.50.25 -p tcp --dport 25 -j ACCEPT
+-A INPUT -s 10.14.0.0/16 -d 192.168.50.30 -p tcp --dport 3306 -j DROP
+
+# FORWARD: students, laboratories and data-centre access
+-A FORWARD -s 10.20.0.0/16 -d 172.16.10.10 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 10.20.5.0/24 -d 172.16.10.10 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 10.30.0.0/24 -d 172.20.10.128/25 -p tcp --dport 80:100 -j ACCEPT
+-A FORWARD -s 10.30.0.128/25 -d 172.20.10.0/24 -p tcp --dport 90:110 -j DROP
+-A FORWARD -s 10.40.10.10 -d 172.16.20.15 -p tcp --dport 22 -j DROP
+-A FORWARD -s 10.40.0.0/16 -d 172.16.20.15 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 10.50.0.0/16 -d 172.16.30.10 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 10.51.0.0/16 -d 172.16.30.10 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 10.52.0.0/16 -d 172.16.40.5 -p udp --dport 1194 -j ACCEPT
+-A FORWARD -s 10.53.0.0/16 -d 172.16.41.5 -p tcp --dport 3389 -j DROP
+-A FORWARD -s 10.54.0.0/16 -d 172.16.42.20 -p tcp --dport 5432 -j ACCEPT
+-A FORWARD -s 10.55.0.0/16 -d 172.16.43.20 -p tcp --dport 6379 -j DROP
+-A FORWARD -s 10.56.0.0/16 -d 172.16.44.100 -p tcp --dport 8080 -j ACCEPT
+-A FORWARD -s 10.57.0.0/16 -d 172.16.45.100 -p udp --dport 161 -j ACCEPT
+-A FORWARD -s 10.58.0.0/16 -d 172.16.46.100 -p udp --dport 162 -j DROP
+
+# FORWARD: bulk sample traffic derived from a real campus firewall capture
+# (iptables -L -nv dump, 2015-05-13) -- added for large-scale anomaly-detector testing
+-A FORWARD -d 131.159.20.180 -p udp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.15.11 -p udp --dport 137 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.15.232 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.14.216 -p tcp --dport 464 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -d 131.159.14.215 -p udp --dport 11000 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.14.215 -p udp --dport 1812:1813 -j ACCEPT
+-A FORWARD -s 131.159.20.38 -d 131.159.20.62 -p udp --dport 53 -j ACCEPT
+-A FORWARD -d 131.159.15.23 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.20.72 -p tcp --dport 43212 -j ACCEPT
+-A FORWARD -d 131.159.15.19 -p tcp --dport 9418 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.15.232 -p tcp --dport 10025 -j ACCEPT
+-A FORWARD -s 131.159.15.0/26 -d 131.159.15.80 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.15.11 -p tcp --dport 137 -j ACCEPT
+-A FORWARD -d 131.159.20.52 -p tcp --dport 2086 -j ACCEPT
+-A FORWARD -s 188.95.232.192/27 -d 131.159.14.216 -p udp --dport 11000 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.14.215 -p udp --dport 11000 -j ACCEPT
+-A FORWARD -d 131.159.15.49 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.15.11 -p tcp --dport 137 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.15.53 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.20.70 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.14.216 -p udp --dport 11000 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.20.70 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -s 131.159.20.38 -d 131.159.20.62 -p tcp --dport 3445 -j ACCEPT
+-A FORWARD -s 185.86.232.0/22 -d 131.159.14.216 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 131.159.42.16 -d 131.159.15.9 -p tcp --dport 445 -j ACCEPT
+-A FORWARD -s 188.1.239.86 -d 131.159.14.215 -p tcp --dport 749 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.14.215 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -s 138.246.253.5 -d 131.159.20.62 -p tcp --dport 1034 -j ACCEPT
+-A FORWARD -s 188.95.234.0/23 -d 131.159.14.216 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 131.159.14.215 -d 131.159.20.62 -p udp --dport 1000 -j ACCEPT
+-A FORWARD -s 188.95.232.192/27 -d 131.159.14.215 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.14.216 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 188.95.234.0/23 -d 131.159.14.216 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.20.70 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.14.198 -p udp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.14.216 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 80.81.196.195 -d 131.159.14.209 -p tcp --dport 873 -j ACCEPT
+-A FORWARD -d 131.159.20.63 -p tcp --dport 993 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.14.215 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.14.215 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 131.159.15.50 -d 131.159.20.62 -p udp --dport 905 -j ACCEPT
+-A FORWARD -d 131.159.15.68 -p udp --dport 1025:65535 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.14.215 -p udp --dport 1812:1813 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -d 131.159.20.96 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.15.0/26 -d 131.159.15.233 -p tcp --dport 628 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -d 131.159.14.215 -p tcp --dport 464 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -d 131.159.15.233 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -d 131.159.14.215 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.15.232 -p tcp --dport 587 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.14.198 -p udp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.224/28 -d 131.159.15.233 -p tcp --dport 628 -j ACCEPT
+-A FORWARD -s 188.95.233.0/24 -d 131.159.14.216 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.14.215 -p tcp --dport 749 -j ACCEPT
+-A FORWARD -d 131.159.15.248 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.14.209 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.224/28 -d 131.159.15.242 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -d 131.159.14.215 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 131.159.20.232 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 192.48.107.0/24 -d 131.159.14.215 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.15.232 -p tcp --dport 10025 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.20.140 -d 131.159.20.62 -p udp --dport 905 -j ACCEPT
+-A FORWARD -s 131.159.15.0/26 -d 131.159.20.96 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.15.51 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 192.48.107.0/24 -d 131.159.14.216 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 81.169.253.164 -d 131.159.14.216 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.20.165 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -d 131.159.15.249 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -d 131.159.20.45 -p tcp --dport 4242 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.14.209 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -s 131.159.14.158 -d 131.159.20.19 -p tcp --dport 515 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.20.70 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -d 131.159.20.131 -p udp --dport 4672 -j ACCEPT
+-A FORWARD -s 188.95.232.192/27 -d 131.159.14.215 -p tcp --dport 749 -j ACCEPT
+-A FORWARD -d 131.159.15.30 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 185.86.232.0/22 -d 131.159.14.215 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 81.169.253.164 -d 131.159.14.216 -p tcp --dport 464 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -d 131.159.15.232 -p tcp --dport 465 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.15.233 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -d 131.159.15.32 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 148.251.90.45 -d 131.159.14.209 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 188.95.232.192/27 -d 131.159.14.209 -p tcp --dport 873 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.15.232 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.20.38 -d 131.159.20.62 -p udp --dport 123 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.14.216 -p tcp --dport 636 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -d 131.159.20.8 -p udp --dport 631 -j ACCEPT
+-A FORWARD -s 131.159.20.140 -d 131.159.20.62 -p udp --dport 3445 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.15.232 -p tcp --dport 143 -j ACCEPT
+-A FORWARD -s 188.95.234.0/23 -d 131.159.14.215 -p tcp --dport 464 -j ACCEPT
+-A FORWARD -s 131.159.14.215 -d 131.159.20.62 -p tcp --dport 905 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -d 131.159.20.96 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 188.95.233.0/24 -d 131.159.14.215 -p udp --dport 69 -j ACCEPT
+-A FORWARD -d 131.159.15.16 -p tcp --dport 53 -j ACCEPT
+-A FORWARD -s 188.95.234.0/23 -d 131.159.14.209 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.42.174 -d 131.159.14.140 -p udp --dport 138 -j ACCEPT
+-A FORWARD -d 131.159.15.33 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.158 -d 131.159.20.19 -p tcp --dport 9100 -j ACCEPT
+-A FORWARD -s 188.95.232.64/26 -d 131.159.14.216 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -d 131.159.15.26 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.14.216 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 45.56.113.33 -d 131.159.14.216 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.14.47 -p udp --dport 53 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.14.47 -p udp --dport 53 -j ACCEPT
+-A FORWARD -d 131.159.20.68 -p udp --dport 4500 -j ACCEPT
+-A FORWARD -s 188.95.232.192/27 -d 131.159.14.216 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -d 131.159.14.85 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.20.72 -p udp --dport 53 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.14.216 -p tcp --dport 636 -j ACCEPT
+-A FORWARD -s 131.159.15.224/28 -d 131.159.14.215 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.14.201 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.15.233 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.20.38 -d 131.159.20.62 -p tcp --dport 6543 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.15.11 -p tcp --dport 137 -j ACCEPT
+-A FORWARD -d 131.159.15.53 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.15.232 -p tcp --dport 465 -j ACCEPT
+-A FORWARD -s 81.169.253.164 -d 131.159.14.216 -p tcp --dport 636 -j ACCEPT
+-A FORWARD -s 131.159.20.38 -d 131.159.20.62 -p udp --dport 901 -j ACCEPT
+-A FORWARD -s 148.251.90.45 -d 131.159.14.215 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.15.232 -p tcp --dport 628 -j ACCEPT
+-A FORWARD -s 131.159.20.140 -d 131.159.20.62 -p udp --dport 903 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.15.232 -p tcp --dport 25 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.15.242 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.15.232 -p tcp --dport 25 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.15.51 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 188.95.234.0/23 -d 131.159.14.216 -p tcp --dport 749 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.14.209 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.20.62 -p tcp --dport 2543 -j ACCEPT
+-A FORWARD -d 131.159.15.80 -p tcp --dport 53 -j ACCEPT
+-A FORWARD -d 131.159.20.202 -p udp --dport 500 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.14.209 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.15.45 -p tcp --dport 8080 -j ACCEPT
+-A FORWARD -s 131.159.15.50 -d 131.159.20.62 -p udp --dport 2543 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.20.70 -p tcp --dport 873 -j ACCEPT
+-A FORWARD -d 131.159.15.16 -p tcp --dport 54 -j ACCEPT
+-A FORWARD -s 131.159.15.0/26 -d 131.159.15.232 -p tcp --dport 465 -j ACCEPT
+-A FORWARD -d 131.159.15.43 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -d 131.159.20.52 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.14.216 -p tcp --dport 636 -j ACCEPT
+-A FORWARD -s 131.159.20.42 -d 131.159.20.62 -p udp --dport 3445 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.14.215 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -d 188.95.233.4 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.20.93 -d 131.159.20.62 -p tcp --dport 3445 -j ACCEPT
+-A FORWARD -d 131.159.15.37 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.15.51 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.15.233 -p tcp --dport 628 -j ACCEPT
+-A FORWARD -d 131.159.15.252 -p udp --dport 4569 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.14.47 -p udp --dport 53 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.14.215 -p tcp --dport 464 -j ACCEPT
+-A FORWARD -d 131.159.15.27 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -d 131.159.15.16 -p udp --dport 54 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.15.232 -p tcp --dport 993 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.20.70 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -d 131.159.20.72 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.12 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.20.70 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.15.80 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 188.95.234.0/23 -d 131.159.14.215 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -d 131.159.15.248 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.0/26 -d 131.159.14.215 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.15.232 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 188.95.232.128/26 -d 131.159.14.216 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 131.159.20.94 -d 131.159.20.62 -p udp --dport 905 -j ACCEPT
+-A FORWARD -s 185.86.232.0/22 -d 131.159.14.209 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.20.72 -d 131.159.20.62 -p tcp --dport 1034 -j ACCEPT
+-A FORWARD -s 188.1.239.86 -d 131.159.14.209 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.14.198 -p udp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.20.42 -d 131.159.20.62 -p udp --dport 1000 -j ACCEPT
+-A FORWARD -s 188.95.232.128/26 -d 131.159.14.216 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 131.159.15.0/26 -d 131.159.14.215 -p tcp --dport 636 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.14.209 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -s 131.159.20.94 -d 131.159.20.62 -p tcp --dport 901 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.14.144 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -d 131.159.14.155 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.14.216 -p tcp --dport 636 -j ACCEPT
+-A FORWARD -s 131.159.20.72 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.14.158 -d 131.159.20.15 -p tcp --dport 631 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.14.209 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.15.232 -p tcp --dport 993 -j ACCEPT
+-A FORWARD -d 131.159.15.48 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.15.30 -p udp --dport 1194 -j ACCEPT
+-A FORWARD -d 131.159.20.180 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -d 131.159.14.169 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.15.234 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.20.93 -d 131.159.20.62 -p udp --dport 1034 -j ACCEPT
+-A FORWARD -d 131.159.20.73 -p udp --dport 53 -j ACCEPT
+-A FORWARD -s 131.159.15.50 -d 131.159.20.62 -p udp --dport 53 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.15.202 -p tcp --dport 8080 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -d 131.159.20.96 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 188.95.232.192/27 -d 131.159.14.215 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.15.232 -p tcp --dport 10025 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.14.209 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 148.251.90.45 -d 131.159.14.209 -p tcp --dport 873 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.14.198 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.20.62 -p udp --dport 2543 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.14.209 -p tcp --dport 873 -j ACCEPT
+-A FORWARD -s 131.159.15.30 -d 131.159.14.34 -p udp --dport 1194 -j ACCEPT
+-A FORWARD -d 131.159.14.36 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.15.232 -p tcp --dport 993 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.14.215 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 131.159.14.216 -d 131.159.20.62 -p tcp --dport 1000 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.15.51 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.15.51 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.15.232 -p tcp --dport 10025 -j ACCEPT
+-A FORWARD -s 188.95.232.64/26 -d 131.159.14.215 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.20.72 -p udp --dport 53 -j ACCEPT
+-A FORWARD -d 131.159.20.85 -p tcp --dport 1234 -j ACCEPT
+-A FORWARD -s 131.159.20.94 -d 131.159.20.62 -p udp --dport 3445 -j ACCEPT
+-A FORWARD -s 131.159.20.232 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.14.216 -d 131.159.20.62 -p udp --dport 899 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.14.209 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -s 188.95.232.192/27 -d 131.159.14.209 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -d 131.159.15.36 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -d 131.159.20.42 -p tcp --dport 587 -j ACCEPT
+-A FORWARD -d 131.159.20.30 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.15.232 -p tcp --dport 587 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.14.216 -p tcp --dport 749 -j ACCEPT
+-A FORWARD -s 138.246.253.5 -d 131.159.20.62 -p udp --dport 903 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.15.11 -p udp --dport 137 -j ACCEPT
+-A FORWARD -s 188.95.236.0/22 -d 131.159.14.215 -p tcp --dport 636 -j ACCEPT
+-A FORWARD -s 188.95.234.0/23 -d 131.159.14.215 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.15.51 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.15.232 -p tcp --dport 587 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.14.215 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.15.30 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -d 131.159.14.125 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -d 131.159.20.165 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.15.242 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.14.155 -p tcp --dport 2086 -j ACCEPT
+-A FORWARD -s 192.48.107.0/24 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.14.215 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 131.159.20.42 -d 131.159.20.62 -p tcp --dport 6543 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.14.216 -p tcp --dport 749 -j ACCEPT
+-A FORWARD -d 131.159.20.131 -p udp --dport 4665 -j ACCEPT
+-A FORWARD -s 188.95.232.128/26 -d 131.159.14.209 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -d 131.159.14.216 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -d 131.159.14.169 -p tcp --dport 44444 -j ACCEPT
+-A FORWARD -d 131.159.15.249 -p tcp --dport 5000 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.14.47 -p udp --dport 53 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.14.209 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.20.57 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.20.72 -d 131.159.20.62 -p udp --dport 2543 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.15.242 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.20.53 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 188.95.232.64/26 -d 131.159.14.216 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.15.47 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.20.42 -p tcp --dport 10025 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.20.70 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.14.216 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 80.81.196.195 -d 131.159.14.209 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -d 131.159.15.27 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.15.19 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 188.95.232.192/27 -d 131.159.14.216 -p udp --dport 67 -j ACCEPT
+-A FORWARD -d 131.159.14.62 -p udp --dport 1194 -j ACCEPT
+-A FORWARD -d 131.159.14.221 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -s 131.159.20.94 -d 131.159.20.62 -p udp --dport 123 -j ACCEPT
+-A FORWARD -s 131.159.14.216 -d 131.159.20.62 -p udp --dport 901 -j ACCEPT
+-A FORWARD -s 131.159.20.72 -d 192.168.212.9 -p tcp --dport 23 -j ACCEPT
+-A FORWARD -d 131.159.15.248 -p tcp --dport 21 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -d 131.159.14.216 -p udp --dport 11000 -j ACCEPT
+-A FORWARD -s 188.1.239.86 -d 131.159.14.216 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.14.41 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.15.224/28 -d 131.159.15.232 -p tcp --dport 10025 -j ACCEPT
+-A FORWARD -s 131.159.15.30 -d 131.159.14.27 -p udp --dport 1194 -j ACCEPT
+-A FORWARD -s 131.159.15.50 -d 131.159.20.62 -p tcp --dport 1034 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -d 131.159.20.70 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.15.232 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 45.56.113.33 -d 131.159.14.216 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 188.95.233.0/24 -d 131.159.14.215 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 188.95.233.0/24 -d 131.159.14.215 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.14.216 -d 131.159.20.62 -p udp --dport 5432 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 188.95.232.64/26 -d 131.159.14.209 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -d 131.159.20.202 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.216 -d 131.159.20.62 -p tcp --dport 899 -j ACCEPT
+-A FORWARD -s 188.95.232.64/26 -d 131.159.14.216 -p udp --dport 11000 -j ACCEPT
+-A FORWARD -d 131.159.20.42 -p udp --dport 10053 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.14.215 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 131.159.15.50 -d 131.159.20.62 -p udp --dport 901 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.15.51 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.14.215 -p tcp --dport 636 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.15.232 -p tcp --dport 465 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.14.216 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -d 131.159.15.51 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.14.215 -p tcp --dport 636 -j ACCEPT
+-A FORWARD -s 131.159.15.30 -d 131.159.14.18 -p udp --dport 1194 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.14.216 -p udp --dport 11000 -j ACCEPT
+-A FORWARD -s 192.48.107.0/24 -d 131.159.14.215 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 188.95.234.0/23 -d 131.159.14.215 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 188.1.239.86 -d 131.159.14.216 -p tcp --dport 464 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.14.216 -p tcp --dport 636 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.14.215 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.20.38 -d 131.159.20.62 -p tcp --dport 1000 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.14.198 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.15.232 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -d 131.159.14.169 -p udp --dport 8745:8749 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -d 131.159.15.80 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.15.51 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.15.248 -p tcp --dport 20001 -j ACCEPT
+-A FORWARD -s 131.159.15.128/26 -d 131.159.20.96 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.215 -d 131.159.20.62 -p tcp --dport 903 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.14.215 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 131.159.15.224/28 -d 131.159.15.232 -p tcp --dport 25 -j ACCEPT
+-A FORWARD -d 131.159.15.34 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.14.216 -p tcp --dport 749 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.15.80 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.50 -d 131.159.20.62 -p udp --dport 903 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -d 131.159.15.8 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -d 131.159.15.53 -p tcp --dport 3631 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.14.215 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 131.159.15.224/28 -d 131.159.15.80 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -d 131.159.14.52 -p udp --dport 1194 -j ACCEPT
+-A FORWARD -s 131.159.20.93 -d 131.159.20.62 -p tcp --dport 123 -j ACCEPT
+-A FORWARD -s 131.159.15.64/26 -d 131.159.14.209 -p tcp --dport 873 -j ACCEPT
+-A FORWARD -d 131.159.20.42 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -d 131.159.15.11 -p udp --dport 137 -j ACCEPT
+-A FORWARD -s 188.95.232.192/27 -d 131.159.14.215 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 188.95.233.0/24 -d 131.159.14.215 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.14.216 -p tcp --dport 749 -j ACCEPT
+-A FORWARD -s 80.81.196.0/24 -d 131.159.14.209 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -d 131.159.15.9 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.14.215 -p tcp --dport 464 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.15.232 -p tcp --dport 628 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -d 131.159.14.215 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 81.169.253.164 -d 131.159.14.215 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.215 -d 131.159.20.62 -p udp --dport 5432 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.15.232 -p tcp --dport 628 -j ACCEPT
+-A FORWARD -s 131.159.42.174 -d 131.159.14.140 -p udp --dport 137 -j ACCEPT
+-A FORWARD -s 131.159.15.64/26 -d 131.159.14.209 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -d 131.159.15.232 -p tcp --dport 628 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.14.198 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.50 -d 131.159.20.62 -p tcp --dport 53 -j ACCEPT
+-A FORWARD -d 131.159.15.252 -p udp --dport 5000 -j ACCEPT
+-A FORWARD -s 131.159.15.0/26 -d 131.159.15.232 -p tcp --dport 10025 -j ACCEPT
+-A FORWARD -s 188.95.232.128/26 -d 131.159.14.216 -p tcp --dport 749 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.15.242 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.14.221 -p tcp --dport 3333 -j ACCEPT
+-A FORWARD -s 131.159.20.42 -d 131.159.20.62 -p udp --dport 1034 -j ACCEPT
+-A FORWARD -d 131.159.14.69 -p udp --dport 1024:65535 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.14.215 -p tcp --dport 636 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.15.232 -p tcp --dport 993 -j ACCEPT
+-A FORWARD -d 131.159.15.38 -p tcp --dport 3690 -j ACCEPT
+-A FORWARD -s 131.159.20.140 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 80.81.196.0/24 -d 131.159.14.209 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -d 131.159.14.216 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.14.198 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.20.94 -d 131.159.20.62 -p udp --dport 2543 -j ACCEPT
+-A FORWARD -s 131.159.20.38 -d 131.159.20.62 -p udp --dport 905 -j ACCEPT
+-A FORWARD -d 131.159.15.60 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 188.1.239.86 -d 131.159.14.216 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 188.95.233.0/24 -d 131.159.14.215 -p udp --dport 11000 -j ACCEPT
+-A FORWARD -s 131.159.20.140 -d 131.159.20.62 -p tcp --dport 899 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.15.80 -p tcp --dport 873 -j ACCEPT
+-A FORWARD -d 131.159.15.57 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.50 -d 131.159.20.62 -p udp --dport 6543 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.15.242 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.14.216 -p tcp --dport 636 -j ACCEPT
+-A FORWARD -d 131.159.15.60 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 188.95.232.128/26 -d 131.159.15.80 -p tcp --dport 873 -j ACCEPT
+-A FORWARD -s 131.159.20.42 -d 131.159.20.62 -p udp --dport 901 -j ACCEPT
+-A FORWARD -s 131.159.20.94 -d 131.159.20.62 -p tcp --dport 905 -j ACCEPT
+-A FORWARD -s 148.251.90.45 -d 131.159.14.209 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -d 131.159.20.21 -p udp --dport 1337 -j ACCEPT
+-A FORWARD -d 131.159.15.233 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.15.233 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -d 131.159.14.140 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.15.224/28 -d 131.159.15.232 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.20.72 -d 131.159.20.62 -p udp --dport 53 -j ACCEPT
+-A FORWARD -s 131.159.14.158 -d 131.159.20.6 -p tcp --dport 9100 -j ACCEPT
+-A FORWARD -s 188.95.234.0/23 -d 131.159.14.215 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.15.51 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.15.0/26 -d 131.159.14.215 -p udp --dport 11000 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -d 131.159.14.216 -p tcp --dport 464 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.15.233 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.20.38 -d 131.159.20.62 -p tcp --dport 123 -j ACCEPT
+-A FORWARD -d 131.159.15.233 -p tcp --dport 587 -j ACCEPT
+-A FORWARD -s 131.159.14.216 -d 131.159.20.62 -p tcp --dport 5432 -j ACCEPT
+-A FORWARD -d 131.159.15.8 -p tcp --dport 21 -j ACCEPT
+-A FORWARD -s 45.56.113.33 -d 131.159.14.215 -p tcp --dport 464 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.14.215 -p tcp --dport 636 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.20.72 -p udp --dport 53 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.14.215 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 131.159.14.216 -d 131.159.20.62 -p tcp --dport 123 -j ACCEPT
+-A FORWARD -s 131.159.14.58 -d 131.159.20.15 -p tcp --dport 631 -j ACCEPT
+-A FORWARD -s 131.159.15.50 -d 131.159.14.169 -p udp --dport 5984 -j ACCEPT
+-A FORWARD -s 131.159.20.42 -d 131.159.20.62 -p udp --dport 903 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.14.215 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.14.215 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.20.29 -p tcp --dport 2222 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -d 131.159.15.233 -p tcp --dport 628 -j ACCEPT
+-A FORWARD -s 131.159.20.72 -d 131.159.20.62 -p udp --dport 1000 -j ACCEPT
+-A FORWARD -s 138.246.253.5 -d 131.159.20.62 -p udp --dport 1034 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.14.198 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.15.53 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.14.216 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 188.1.239.86 -d 131.159.14.215 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -s 188.95.232.128/26 -d 131.159.14.216 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -d 131.159.15.234 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.20.72 -d 131.159.20.62 -p tcp --dport 53 -j ACCEPT
+-A FORWARD -s 131.159.15.224/28 -d 131.159.14.216 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.14.215 -p tcp --dport 636 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.14.216 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.14.192/27 -d 131.159.14.216 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -d 131.159.15.233 -p tcp --dport 993 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.20.70 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.14.215 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.15.23 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.14.47 -p udp --dport 53 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.15.51 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.15.29 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.20.62 -p tcp --dport 53 -j ACCEPT
+-A FORWARD -s 131.159.15.224/28 -d 131.159.14.216 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.14.216 -p udp --dport 1812:1813 -j ACCEPT
+-A FORWARD -s 131.159.15.50 -d 131.159.20.62 -p tcp --dport 899 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.20.70 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -d 131.159.14.215 -p tcp --dport 749 -j ACCEPT
+-A FORWARD -d 131.159.20.180 -p udp --dport 113 -j ACCEPT
+-A FORWARD -s 131.159.15.224/28 -d 131.159.20.70 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.15.35 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 138.246.253.5 -d 131.159.20.62 -p udp --dport 2543 -j ACCEPT
+-A FORWARD -s 131.159.15.0/26 -d 131.159.15.232 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 185.86.232.0/22 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.15.249 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.15.0/26 -d 131.159.14.215 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -s 131.159.14.216 -d 131.159.20.62 -p udp --dport 905 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.15.80 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.14.215 -p tcp --dport 464 -j ACCEPT
+-A FORWARD -d 131.159.15.56 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.20.38 -d 131.159.20.62 -p udp --dport 1034 -j ACCEPT
+-A FORWARD -s 131.159.15.0/26 -d 131.159.14.216 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.15.233 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -d 131.159.20.21 -p udp --dport 22 -j ACCEPT
+-A FORWARD -d 131.159.15.53 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.20.42 -d 131.159.20.62 -p udp --dport 2543 -j ACCEPT
+-A FORWARD -d 131.159.15.21 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 188.1.239.86 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -d 131.159.15.232 -p tcp --dport 25 -j ACCEPT
+-A FORWARD -s 131.159.15.0/26 -d 131.159.14.216 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -d 131.159.15.232 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -d 131.159.20.21 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.14.215 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -d 131.159.15.42 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -d 131.159.15.43 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.15.30 -d 131.159.14.21 -p udp --dport 1194 -j ACCEPT
+-A FORWARD -d 131.159.15.17 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -d 131.159.14.221 -p tcp --dport 53 -j ACCEPT
+-A FORWARD -d 131.159.15.14 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.20.94 -d 131.159.20.62 -p tcp --dport 6543 -j ACCEPT
+-A FORWARD -s 131.159.20.140 -d 131.159.20.62 -p udp --dport 5432 -j ACCEPT
+-A FORWARD -s 188.95.236.0/22 -d 131.159.14.209 -p tcp --dport 873 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.14.215 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -d 131.159.14.209 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -d 131.159.20.97 -p tcp --dport 44444 -j ACCEPT
+-A FORWARD -s 131.159.20.94 -d 131.159.20.62 -p udp --dport 903 -j ACCEPT
+-A FORWARD -s 131.159.15.1 -d 131.159.14.227 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.14.215 -p tcp --dport 749 -j ACCEPT
+-A FORWARD -d 131.159.15.42 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.14.198 -p udp --dport 443 -j ACCEPT
+-A FORWARD -s 45.56.113.33 -d 131.159.14.216 -p tcp --dport 464 -j ACCEPT
+-A FORWARD -s 131.159.14.158 -d 131.159.20.19 -p tcp --dport 631 -j ACCEPT
+-A FORWARD -d 131.159.14.56 -p udp --dport 1194 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.20.62 -p udp --dport 899 -j ACCEPT
+-A FORWARD -d 131.159.14.145 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.0/26 -d 131.159.14.209 -p tcp --dport 873 -j ACCEPT
+-A FORWARD -s 131.159.20.140 -d 131.159.20.62 -p tcp --dport 1000 -j ACCEPT
+-A FORWARD -s 131.159.14.0/25 -d 131.159.15.232 -p tcp --dport 587 -j ACCEPT
+-A FORWARD -s 138.246.253.5 -d 131.159.20.62 -p tcp --dport 53 -j ACCEPT
+-A FORWARD -s 131.159.20.140 -d 131.159.20.62 -p tcp --dport 53 -j ACCEPT
+-A FORWARD -s 131.159.20.72 -d 131.159.20.62 -p udp --dport 901 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.14.216 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 131.159.14.215 -d 131.159.20.62 -p udp --dport 903 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.14.209 -p tcp --dport 873 -j ACCEPT
+-A FORWARD -s 131.159.14.128/26 -d 131.159.14.216 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 131.159.15.240/28 -d 131.159.14.209 -p tcp --dport 3142 -j ACCEPT
+-A FORWARD -s 131.159.15.30 -d 131.159.14.112 -p udp --dport 1194 -j ACCEPT
+-A FORWARD -s 131.159.15.64/26 -d 131.159.20.70 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.20.72 -d 131.159.20.62 -p udp --dport 123 -j ACCEPT
+-A FORWARD -d 131.159.15.42 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.20.96 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 131.159.15.224/28 -d 131.159.14.215 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.15.232 -p tcp --dport 587 -j ACCEPT
+-A FORWARD -s 131.159.14.240/28 -d 131.159.14.198 -p udp --dport 80 -j ACCEPT
+-A FORWARD -s 148.251.90.45 -d 131.159.14.216 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 131.159.20.42 -d 131.159.20.62 -p tcp --dport 1034 -j ACCEPT
+-A FORWARD -s 188.95.234.0/23 -d 131.159.14.216 -p tcp --dport 389 -j ACCEPT
+-A FORWARD -s 131.159.14.224/28 -d 131.159.15.11 -p udp --dport 137 -j ACCEPT
+-A FORWARD -s 131.159.20.0/24 -d 131.159.15.53 -p udp --dport 1:65535 -j ACCEPT
+-A FORWARD -s 131.159.20.93 -d 131.159.20.62 -p tcp --dport 2543 -j ACCEPT
+-A FORWARD -d 131.159.15.45 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 188.95.233.4 -d 131.159.20.72 -p udp --dport 53 -j ACCEPT
+-A FORWARD -s 131.159.21.0/24 -d 131.159.14.215 -p udp --dport 67 -j ACCEPT
+-A FORWARD -s 188.95.233.0/24 -d 131.159.14.209 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 131.159.15.192/27 -d 131.159.15.51 -p tcp --dport 22 -j ACCEPT
+-A FORWARD -s 188.1.239.86 -d 131.159.14.215 -p tcp --dport 80 -j ACCEPT
+-A FORWARD -s 188.95.236.0/22 -d 131.159.14.216 -p udp --dport 69 -j ACCEPT
+-A FORWARD -s 188.95.233.0/24 -d 131.159.14.209 -p tcp --dport 443 -j ACCEPT
+-A FORWARD -s 138.246.253.5 -p udp --dport 1:65535 -j ACCEPT
+
+# OUTPUT: server-side access
+-A OUTPUT -s 192.168.50.10 -d 198.51.100.10 -p tcp --dport 443 -j ACCEPT
+-A OUTPUT -s 192.168.50.20 -d 198.51.100.20 -p tcp --dport 443 -j ACCEPT
+-A OUTPUT -s 192.168.50.53 -d 198.51.100.53 -p udp --dport 53 -j ACCEPT
+-A OUTPUT -s 192.168.50.25 -d 198.51.100.25 -p tcp --dport 25 -j ACCEPT
+
+COMMIT

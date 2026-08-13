@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ page_title_report }}</title>
+  <title>{{ page_title_check_new_report }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <main class="shell report-shell">
-    <form class="lang-switch" method="get" action="{{ url_for('index') }}">
+    <form class="lang-switch" method="get" action="{{ url_for('check_new_form') }}">
       <label for="lang-select">{{ lang_switch_label }}</label>
       <select id="lang-select" name="lang" onchange="this.form.submit()">
         <option value="fa" {% if lang == 'fa' %}selected{% endif %}>{{ lang_name_fa }}</option>
@@ -16,32 +16,29 @@
       </select>
     </form>
 
-    <a class="back-link" href="{{ url_for('index') }}?lang={{ lang }}">{{ back_to_new_analysis }}</a>
+    <a class="back-link" href="{{ url_for('check_new_form') }}?lang={{ lang }}">{{ check_another_link }}</a>
 
     <header class="report-header">
-      <p class="eyebrow">{{ report_eyebrow }}</p>
-      <h1>{{ report_h1 }}</h1>
-      <p class="source">{{ source_name }}</p>
+      <p class="eyebrow">{{ incremental_eyebrow }}</p>
+      <h1>{{ check_new_report_h1 }}</h1>
+      <p class="source">
+        {{ new_rules_summary.replace('{base}', base_rules_count|string).replace('{new}', new_rules_count|string).replace('{first}', new_rule_ids[0]|string).replace('{last}', new_rule_ids[-1]|string) }}
+      </p>
     </header>
 
-    {% if strict_blocked %}
+    {% if not analysis_complete %}
       <section class="message warning" role="alert">
-        <h2>{{ strict_blocked_title }}</h2>
-        <p>{{ strict_blocked_body }}</p>
-      </section>
-    {% elif not analysis_complete %}
-      <section class="message warning" role="alert">
-        <h2>{{ incomplete_title }}</h2>
-        <p>{{ incomplete_body }}</p>
+        <h2>{{ incomplete_check_title }}</h2>
+        <p>{{ incomplete_check_body }}</p>
       </section>
     {% else %}
-      <div class="message success"><strong>{{ complete_message }}</strong> {{ complete_body }}</div>
+      <div class="message success"><strong>{{ check_complete_message }}</strong> {{ check_complete_body }}</div>
     {% endif %}
 
-    <section class="metrics" aria-label="{{ metrics_label }}">
-      <article><span>{{ metric_analyzed_rules }}</span><strong>{{ rules_count }}</strong></article>
-      <article><span>{{ metric_unsupported_lines }}</span><strong>{{ errors|length }}</strong></article>
-      <article><span>{{ metric_findings }}</span><strong>{{ findings_count }}</strong></article>
+    <section class="metrics" aria-label="{{ check_metrics_label }}">
+      <article><span>{{ metric_existing_rules }}</span><strong>{{ base_rules_count }}</strong></article>
+      <article><span>{{ metric_new_rules_short }}</span><strong>{{ new_rules_count }}</strong></article>
+      <article><span>{{ metric_new_findings }}</span><strong>{{ findings_count }}</strong></article>
       {% if analysis_duration %}
         <article><span>{{ metric_analysis_time }}</span><strong>{{ analysis_duration }}</strong></article>
       {% endif %}
@@ -53,11 +50,22 @@
       {% endfor %}
     </section>
 
-    {% if errors %}
+    {% if base_errors %}
       <section class="unsupported">
-        <h2>{{ unsupported_lines_title }}</h2>
+        <h2>{{ base_errors_title }}</h2>
         <ol>
-          {% for error in errors %}
+          {% for error in base_errors %}
+            <li><strong>{{ line_word }} {{ error.line_number }}:</strong> {{ error.reason }}<code>{{ error.raw_line }}</code></li>
+          {% endfor %}
+        </ol>
+      </section>
+    {% endif %}
+
+    {% if new_errors %}
+      <section class="unsupported">
+        <h2>{{ new_errors_title }}</h2>
+        <ol>
+          {% for error in new_errors %}
             <li><strong>{{ line_word }} {{ error.line_number }}:</strong> {{ error.reason }}<code>{{ error.raw_line }}</code></li>
           {% endfor %}
         </ol>
@@ -67,6 +75,7 @@
     {% if findings %}
       <section class="findings">
         <h2>{{ findings_title }}</h2>
+        <p class="form-note">{{ new_findings_note.replace('{first}', new_rule_ids[0]|string).replace('{last}', new_rule_ids[-1]|string) }}</p>
         {% for finding in findings %}
           <article class="finding {{ finding.severity_key }}">
             <header>
@@ -79,10 +88,10 @@
           </article>
         {% endfor %}
       </section>
-    {% elif not strict_blocked %}
+    {% else %}
       <section class="empty-state">
-        <h2>{{ empty_state_title }}</h2>
-        <p>{{ empty_state_body }}</p>
+        <h2>{{ no_new_findings_title }}</h2>
+        <p>{{ no_new_findings_body }}</p>
       </section>
     {% endif %}
   </main>
